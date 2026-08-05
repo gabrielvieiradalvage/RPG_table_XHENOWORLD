@@ -82,12 +82,13 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
-  // Áudio
+  // ÁUDIO E SINCRONIZAÇÃO EM TEMPO REAL
   const [playlist, setPlaylist] = useState<RoomAudio[]>([]);
   const [currentAudio, setCurrentAudio] = useState<RoomAudio | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioChannelRef = useRef<any>(null);
 
   // Chat & IA
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -101,7 +102,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     initRoom();
   }, []);
 
-  // CANAL EM TEMPO REAL DO CHAT (TRANSMISSÃO PARA TODOS OS JOGADORES DA MESA)
+  // CANAL EM TEMPO REAL DO CHAT
   useEffect(() => {
     const channel = supabase.channel(`room_chat_${roomId}`, {
       config: { broadcast: { self: false } },
@@ -122,6 +123,48 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       supabase.removeChannel(channel);
     };
   }, [roomId]);
+
+  // CANAL EM TEMPO REAL DE ÁUDIO (SINCRONIZAÇÃO ENTRE MESTRE E JOGADORES)
+  useEffect(() => {
+    if (!roomId) return;
+
+    const channel = supabase.channel(`room_audio_${roomId}`, {
+      config: { broadcast: { self: false } },
+    });
+
+    channel
+      .on("broadcast", { event: "play_audio" }, ({ payload }: { payload: { track: RoomAudio } }) => {
+        setCurrentAudio(payload.track);
+        setIsPlaying(true);
+      })
+      .on("broadcast", { event: "stop_audio" }, () => {
+        setIsPlaying(false);
+        setCurrentAudio(null);
+      })
+      .subscribe();
+
+    audioChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId]);
+
+  // REPRODUÇÃO GLOBAL DO PLAYER DE ÁUDIO
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    if (currentAudio && isPlaying) {
+      if (audioRef.current.src !== currentAudio.audio_url) {
+        audioRef.current.src = currentAudio.audio_url;
+      }
+      audioRef.current.play().catch((err) => {
+        console.warn("Autoplay bloqueado pelo navegador:", err);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [currentAudio, isPlaying]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -211,7 +254,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
-  // FUNÇÃO AUXILIAR DE TRANSMISSÃO EM TEMPO REAL DAS MENSAGENS
+  // TRANSMISSÃO EM TEMPO REAL DAS MENSAGENS
   const broadcastChatMessage = (msg: ChatMessage) => {
     if (chatChannelRef.current) {
       chatChannelRef.current.send({
@@ -219,6 +262,41 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
         event: "new_chat_message",
         payload: msg,
       });
+    }
+  };
+
+  // CONTROLADORES DE ÁUDIO SINCRONIZADOS
+  const handlePlayTrack = (track: RoomAudio) => {
+    setCurrentAudio(track);
+    setIsPlaying(true);
+
+    if (audioChannelRef.current) {
+      audioChannelRef.current.send({
+        type: "broadcast",
+        event: "play_audio",
+        payload: { track },
+      });
+    }
+  };
+
+  const handleStopTrack = () => {
+    setIsPlaying(false);
+    setCurrentAudio(null);
+
+    if (audioChannelRef.current) {
+      audioChannelRef.current.send({
+        type: "broadcast",
+        event: "stop_audio",
+      });
+    }
+  };
+
+  const togglePlayPause = () => {
+    if (!currentAudio) return;
+    if (isPlaying) {
+      handleStopTrack();
+    } else {
+      handlePlayTrack(currentAudio);
     }
   };
 
@@ -348,33 +426,11 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     await supabase.from("room_audios").delete().eq("id", trackToDelete.id);
     setPlaylist((prev) => prev.filter((a) => a.id !== trackToDelete.id));
     if (currentAudio?.id === trackToDelete.id) {
-      setCurrentAudio(null);
-      setIsPlaying(false);
-      if (audioRef.current) audioRef.current.pause();
+      handleStopTrack();
     }
   };
 
-  const playTrack = (track: RoomAudio) => {
-    setCurrentAudio(track);
-    setIsPlaying(true);
-    if (audioRef.current) {
-      audioRef.current.src = track.audio_url;
-      audioRef.current.play();
-    }
-  };
-
-  const togglePlayPause = () => {
-    if (!audioRef.current || !currentAudio) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play();
-      setIsPlaying(true);
-    }
-  };
-
-  // CHAT & IA COM MEMÓRIA DE HISTÓRICO E TRANSMISSÃO REALTIME
+  // CHAT & IA
   const handleSendMessage = async (text: string, isNpcIa?: boolean) => {
     const senderTag = isMestre ? `${username}(mestre)` : `${username}(membro)`;
 
@@ -406,7 +462,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
             content: `${m.sender}: ${m.text}`,
           }));
 
-        // Chama a rota interna do Next.js
         const response = await fetch("/api/npc/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -450,7 +505,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
 
     const result = Math.floor(Math.random() * sides) + 1;
-    let resultText = `Roolou d${sides} (${label || "Ação"}): 🎲 [ ${result} ]`;
+    let resultText = `Rolou d${sides} (${label || "Ação"}): 🎲 [ ${result} ]`;
     if (bonus && bonus > 0) resultText += ` + ${bonus} = ${result + bonus}`;
     if (sides === 20 && result === 20) resultText += " 🔥 CRÍTICO!";
     if (sides === 20 && result === 1) resultText += " 💀 FALHA CRÍTICA!";
@@ -472,6 +527,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="h-screen w-screen bg-[#080811] text-white flex flex-col overflow-hidden select-none touch-none">
+      {/* ELEM. AUDIO PERSISTENTE (CONTINUA TOCANDO EM QUALQUER ABA) */}
       <audio ref={audioRef} loop />
 
       <ConvidarAmigos roomId={roomId} isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
@@ -498,7 +554,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           <span className="text-xs text-purple-300 animate-pulse">🎵</span>
           <span className="text-[10px] sm:text-xs text-gray-300 font-medium max-w-[80px] sm:max-w-[140px] truncate">{currentAudio ? currentAudio.title : "Sem som"}</span>
           {currentAudio && (
-            <button onClick={togglePlayPause} className="text-[10px] sm:text-xs bg-purple-600 text-white px-2 py-0.5 rounded font-bold cursor-pointer">
+            <button onClick={togglePlayPause} className="text-[10px] sm:text-xs bg-purple-600 hover:bg-purple-500 text-white px-2 py-0.5 rounded font-bold cursor-pointer">
               {isPlaying ? "⏸" : "▶"}
             </button>
           )}
@@ -508,7 +564,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       {/* CONTEÚDO PRINCIPAL */}
       <div className="flex-1 flex overflow-hidden relative">
 
-        {/* 1. PAINEL ESQUERDO: CHAT E DADOS COM TRACKER DE TURNOS INTEGRADO */}
+        {/* 1. PAINEL ESQUERDO: CHAT E DADOS */}
         <div className={`flex-1 md:flex-none border-r border-purple-900/40 ${mobileView !== "chat" ? "hidden md:block" : "block w-full"}`}>
           <Chat
             messages={messages}
@@ -654,7 +710,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${sidebarWidth}px` : undefined }}
           className={`fixed md:relative inset-y-0 right-0 z-40 bg-[#12131f] md:bg-[#12131f]/95 border-l border-purple-900/40 flex flex-col transition-transform duration-300 ${mobileView === "painel" ? "translate-x-0 w-full" : "translate-x-full md:translate-x-0"}`}
         >
-          {/* 🟦 ZONA AZUL INTERATIVA NA BORDA ESQUERDA DO PAINEL DIREITO */}
+          {/* ZONA INTERATIVA REDIMENSIONÁVEL */}
           <div
             onMouseDown={() => setIsResizing(true)}
             className="hidden md:flex absolute -left-1.5 top-0 bottom-0 w-3 bg-cyan-500/20 hover:bg-cyan-400/80 cursor-col-resize z-50 transition-colors flex-col items-center justify-center group"
@@ -702,7 +758,19 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
             {activeTab === "ficha" && <Ficha roomId={roomId} userId={currentUser?.id} isMestre={isMestre} onRollDice={handleRollDice} />}
             {activeTab === "tokens" && <Tokens roomId={roomId} />}
             {activeTab === "mapas" && <Mapas isMestre={isMestre} maps={maps} activeMapUrl={activeMapUrl} isUploadingMap={isUploadingMap} onMapUpload={handleMapUpload} onSelectMap={(map) => setActiveMapUrl(map.image_url)} onDeleteMap={handleDeleteMap} mapScale={mapScale} onMapScaleChange={setMapScale} mapFitMode={mapFitMode} onFitModeChange={(mode) => setMapFitMode(mode)} />}
-            {activeTab === "audio" && <Audio isMestre={isMestre} playlist={playlist} isUploadingAudio={isUploadingAudio} onAudioUpload={handleAudioUpload} onPlayTrack={playTrack} onDeleteTrack={handleDeleteAudio} />}
+            {activeTab === "audio" && (
+              <Audio
+                isMestre={isMestre}
+                playlist={playlist}
+                isUploadingAudio={isUploadingAudio}
+                currentTrack={currentAudio}
+                isPlaying={isPlaying}
+                onAudioUpload={handleAudioUpload}
+                onPlayTrack={handlePlayTrack}
+                onStopTrack={handleStopTrack}
+                onDeleteTrack={handleDeleteAudio}
+              />
+            )}
             {activeTab === "ia" && isMestre && <IaPersonagens roomId={roomId} mapTokens={mapTokens} activeNpcId={activeIaNpc?.id || null} onSelectActiveNpc={(npc) => setActiveIaNpc(npc)} />}
             {activeTab === "mestre" && isMestre && <FerramentasDoMestre roomId={roomId} />}
           </div>
