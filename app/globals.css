@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+:root {
+  --background: #080811;
+  --foreground: #f8f9fa;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+}
+
+/* Efeito de brilho cósmico extra para os nossos botões e bordas */
+.glow-purple {
+  box-shadow: 0 0 20px rgba(157, 78, 221, 0.35);
+}
+
+.glow-blue {
+  box-shadow: 0 0 20px rgba(76, 201, 240, 0.35);
+}

@@ -1,0 +1,650 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import CriarPersonagem from "./CriarPersonagem";
+
+export interface Ability {
+  id: string;
+  name: string;
+  type: string;
+  cost: number;
+  dieSides: number;
+}
+
+export interface Character {
+  id: string;
+  room_id: string;
+  user_id: string;
+  name: string;
+  avatar_url?: string | null;
+  token_shape: "circle" | "square";
+  is_npc: boolean;
+  level: number;
+  xp: number;
+  current_hp: number;
+  max_hp: number;
+  current_stamina: number;
+  max_stamina: number;
+  current_pericia: number;
+  max_pericia: number;
+  initiative_roll?: number;
+  attributes: {
+    resiliencia: number;
+    vontade: number;
+    iniciativa: number;
+    precisao: number;
+    forca: number;
+    intelecto: number;
+    [key: string]: any;
+  };
+  abilities: Ability[];
+}
+
+interface FichaProps {
+  roomId: string;
+  userId: string;
+  isMestre: boolean;
+  onRollDice?: (sides: number, bonus?: number, label?: string) => void;
+}
+
+export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaProps) {
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [activeChar, setActiveChar] = useState<Character | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Seleção de Alvos
+  const [targetList, setTargetList] = useState<{ id: string; name: string; is_npc: boolean }[]>([]);
+  const [selectedTargetId, setSelectedTargetId] = useState<string>("");
+
+  // Edição
+  const [editName, setEditName] = useState("");
+  const [editAvatarUrl, setEditAvatarUrl] = useState("");
+  const [editTokenShape, setEditTokenShape] = useState<"circle" | "square">("circle");
+
+  // Nova Habilidade
+  const [newAbilityName, setNewAbilityName] = useState("");
+  const [newAbilityType, setNewAbilityType] = useState("Físico");
+  const [newAbilityCost, setNewAbilityCost] = useState(1);
+  const [newAbilityDie, setNewAbilityDie] = useState(6);
+
+  // Helpers de Cálculo
+  const getHpMax = (r: number, v: number) => 20 + Math.floor((r + v) / 2);
+  const getStaminaMax = (r: number) => 10 + r * 5;
+  const getAttrXpCost = (key: string): number => (key === "resiliencia" ? 5 : key === "iniciativa" ? 15 : 10);
+
+  useEffect(() => {
+    fetchCharacters();
+    fetchTargetList();
+  }, [roomId, userId]);
+
+  const fetchCharacters = async () => {
+    setLoading(true);
+    let query = supabase.from("characters").select("*").eq("room_id", roomId);
+    if (!isMestre) query = query.eq("user_id", userId).eq("is_npc", false);
+
+    const { data } = await query;
+    if (data && data.length > 0) {
+      setCharacters(data as Character[]);
+      setActiveChar(data[0] as Character);
+    } else {
+      setCharacters([]);
+      setActiveChar(null);
+    }
+    setLoading(false);
+  };
+
+  const fetchTargetList = async () => {
+    const { data } = await supabase.from("characters").select("id, name, is_npc").eq("room_id", roomId);
+    if (data) setTargetList(data);
+  };
+
+  const updateCharacterData = async (updatedChar: Character, payload: Partial<Character>) => {
+    setActiveChar(updatedChar);
+    setCharacters((prev) => prev.map((c) => (c.id === updatedChar.id ? updatedChar : c)));
+    await supabase.from("characters").update(payload).eq("id", updatedChar.id);
+  };
+
+  const updateStat = (field: string, value: number) => {
+    if (!activeChar) return;
+    const updated = { ...activeChar, [field]: value };
+    updateCharacterData(updated, { [field]: value });
+  };
+
+  // ROLAGEM DE INICIATIVA E INTEGRAÇÃO COM TURNOS (GRAVADA EM ATTRIBUTES)
+  const handleRollIniciativa = async () => {
+    if (!activeChar) return;
+
+    const sides = 6 + (activeChar.attributes?.iniciativa || 0);
+    const rollResult = Math.floor(Math.random() * sides) + 1;
+
+    const updatedAttrs = {
+      ...(activeChar.attributes || {}),
+      initiative_roll: rollResult,
+    };
+
+    const updated: Character = {
+      ...activeChar,
+      initiative_roll: rollResult,
+      attributes: updatedAttrs as any,
+    };
+
+    setActiveChar(updated);
+    setCharacters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+
+    await supabase
+      .from("characters")
+      .update({ attributes: updatedAttrs })
+      .eq("id", activeChar.id);
+
+    if (onRollDice) {
+      onRollDice(0, 0, `🎲 Iniciativa de ${activeChar.name}: [ ${rollResult} ] (d${sides})`);
+    }
+  };
+
+  // EVOLUÇÃO E ATRIBUTOS COM XP
+  const handleIncreaseAttribute = (attrKey: keyof Character["attributes"]) => {
+    if (!activeChar) return;
+    const cost = getAttrXpCost(attrKey as string);
+
+    if (activeChar.xp < cost) {
+      alert(`XP insuficiente! Aumentar ${String(attrKey).toUpperCase()} requer ${cost} XP.`);
+      return;
+    }
+
+    const newAttrs = { ...activeChar.attributes, [attrKey]: (activeChar.attributes[attrKey] || 0) + 1 };
+    const newXp = activeChar.xp - cost;
+    const newMaxHp = getHpMax(newAttrs.resiliencia, newAttrs.vontade);
+    const newMaxStamina = getStaminaMax(newAttrs.resiliencia);
+
+    const updated: Character = {
+      ...activeChar,
+      xp: newXp,
+      attributes: newAttrs,
+      max_hp: newMaxHp,
+      max_stamina: newMaxStamina,
+    };
+
+    updateCharacterData(updated, { xp: newXp, attributes: newAttrs, max_hp: newMaxHp, max_stamina: newMaxStamina });
+  };
+
+  const handleDecreaseAttribute = (attrKey: keyof Character["attributes"]) => {
+    if (!activeChar) return;
+    const currentVal = activeChar.attributes[attrKey] || 0;
+    if (currentVal <= 0) return;
+
+    const refund = getAttrXpCost(attrKey as string);
+    const newAttrs = { ...activeChar.attributes, [attrKey]: currentVal - 1 };
+    const newXp = activeChar.xp + refund;
+    const newMaxHp = getHpMax(newAttrs.resiliencia, newAttrs.vontade);
+    const newMaxStamina = getStaminaMax(newAttrs.resiliencia);
+
+    const updated: Character = {
+      ...activeChar,
+      xp: newXp,
+      attributes: newAttrs,
+      max_hp: newMaxHp,
+      max_stamina: newMaxStamina,
+      current_hp: Math.min(activeChar.current_hp, newMaxHp),
+      current_stamina: Math.min(activeChar.current_stamina, newMaxStamina),
+    };
+
+    updateCharacterData(updated, {
+      xp: newXp,
+      attributes: newAttrs,
+      max_hp: newMaxHp,
+      max_stamina: newMaxStamina,
+      current_hp: updated.current_hp,
+      current_stamina: updated.current_stamina,
+    });
+  };
+
+  // EXCLUIR PERSONAGEM
+  const handleDeleteCharacter = async () => {
+    if (!activeChar) return;
+    if (!confirm(`Deseja apagar a ficha de "${activeChar.name}"?`)) return;
+
+    const { error } = await supabase.from("characters").delete().eq("id", activeChar.id);
+    if (error) {
+      alert("Erro ao excluir: " + error.message);
+      return;
+    }
+
+    const remaining = characters.filter((c) => c.id !== activeChar.id);
+    setCharacters(remaining);
+    setActiveChar(remaining[0] || null);
+    fetchTargetList();
+  };
+
+  // EDIÇÃO SIMPLES
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeChar || !editName.trim()) return;
+
+    const updated = {
+      ...activeChar,
+      name: editName.trim(),
+      avatar_url: editAvatarUrl.trim() || null,
+      token_shape: editTokenShape,
+    };
+
+    setIsEditing(false);
+    await updateCharacterData(updated, {
+      name: editName.trim(),
+      avatar_url: editAvatarUrl.trim() || null,
+      token_shape: editTokenShape,
+    });
+    fetchTargetList();
+  };
+
+  // HABILIDADES - CADASTRO LIMPO
+  const handleAddAbility = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeChar || !newAbilityName.trim()) return;
+
+    const newAbility: Ability = {
+      id: Date.now().toString(),
+      name: newAbilityName.trim(),
+      type: newAbilityType,
+      cost: Number(newAbilityCost),
+      dieSides: Number(newAbilityDie),
+    };
+
+    const cleanAbilities = (activeChar.abilities || []).filter((a) => a && a.name && a.name.trim() !== "");
+    const updatedAbilities = [...cleanAbilities, newAbility];
+    const updated = { ...activeChar, abilities: updatedAbilities };
+
+    setNewAbilityName("");
+    await updateCharacterData(updated, { abilities: updatedAbilities });
+  };
+
+  const handleDeleteAbility = async (abilityId: string) => {
+    if (!activeChar) return;
+    const updatedAbilities = (activeChar.abilities || []).filter((a) => a && a.id !== abilityId && a.name && a.name.trim() !== "");
+    await updateCharacterData({ ...activeChar, abilities: updatedAbilities }, { abilities: updatedAbilities });
+  };
+
+  // DESCANSAR
+  const handleDescansar = async () => {
+    if (!activeChar) return;
+
+    const staminaRecovered = Math.floor(Math.random() * 10) + 1;
+    const newStamina = Math.min(activeChar.max_stamina || 10, activeChar.current_stamina + staminaRecovered);
+    const newPericia = Math.min(5, activeChar.current_pericia + 3);
+
+    const updated = { ...activeChar, current_pericia: newPericia, current_stamina: newStamina };
+    await updateCharacterData(updated, { current_pericia: newPericia, current_stamina: newStamina });
+
+    if (onRollDice) {
+      onRollDice(0, 0, `💤 Descansou! Recuperou +3 ⭐ de Perícia e +${staminaRecovered}⚡ de Stamina [d10] (${newStamina}/${activeChar.max_stamina})`);
+    }
+  };
+
+  // ATAQUE E HABILIDADES
+  const handleSocoBasico = async () => {
+    const damage = Math.floor(Math.random() * 6) + 1;
+    let targetText = "";
+
+    if (selectedTargetId) {
+      const { data: targetData } = await supabase.from("characters").select("id, name, current_hp").eq("id", selectedTargetId).single();
+      if (targetData) {
+        const newHp = Math.max(0, targetData.current_hp - damage);
+        await supabase.from("characters").update({ current_hp: newHp }).eq("id", selectedTargetId);
+        targetText = ` 🎯 em ${targetData.name} (💥 Causou ${damage} de dano! ❤️ HP: ${newHp})`;
+      }
+    }
+
+    if (onRollDice) onRollDice(0, 0, `👊 Soco Básico (0 ⭐): 🎲 [ ${damage} ]${targetText}`);
+  };
+
+  const handleUseAbility = async (ability: Ability) => {
+    if (!activeChar) return;
+
+    if (activeChar.current_pericia < ability.cost) {
+      alert(`Estrelas insuficientes! Requer ${ability.cost} ⭐ de Perícia.`);
+      return;
+    }
+
+    const staminaDieSides = ability.cost * 10;
+    const staminaCost = Math.floor(Math.random() * staminaDieSides) + 1;
+    const isExhausted = activeChar.current_stamina < staminaCost;
+    const newPericia = activeChar.current_pericia - ability.cost;
+    const newStamina = Math.max(0, activeChar.current_stamina - staminaCost);
+
+    const updatedCaster = { ...activeChar, current_pericia: newPericia, current_stamina: newStamina };
+    await updateCharacterData(updatedCaster, { current_pericia: newPericia, current_stamina: newStamina });
+
+    if (isExhausted) {
+      if (onRollDice) {
+        onRollDice(0, 0, `💀 AÇÃO FALHOU! ${activeChar.name} tentou usar "${ability.name}", mas ficou EXAUSTO! Stamina zerou! ⚡ [0/${activeChar.max_stamina}]`);
+      }
+      return;
+    }
+
+    const damage = Math.floor(Math.random() * ability.dieSides) + 1;
+    let targetText = "";
+
+    if (selectedTargetId) {
+      const { data: targetData } = await supabase.from("characters").select("id, name, current_hp").eq("id", selectedTargetId).single();
+      if (targetData) {
+        const newHp = Math.max(0, targetData.current_hp - damage);
+        await supabase.from("characters").update({ current_hp: newHp }).eq("id", selectedTargetId);
+        targetText = ` 🎯 em ${targetData.name} (💥 Causou ${damage} de dano! ❤️ HP: ${newHp})`;
+      }
+    }
+
+    if (onRollDice) {
+      onRollDice(0, 0, `✨ ${ability.name} [${ability.type}]: 🎲 d${ability.dieSides} [ ${damage} ]${targetText} | Custo: -${ability.cost}⭐, -${staminaCost}⚡ Stamina`);
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case "Físico": return "⚔️";
+      case "Distância": return "🏹";
+      case "Poder": return "💥";
+      case "Magia": return "✨";
+      case "Suporte": return "🛡️";
+      default: return "⚡";
+    }
+  };
+
+  if (loading) return <div className="text-center py-6 text-xs text-purple-300">Carregando Ficha...</div>;
+
+  if (isCreating || characters.length === 0) {
+    return (
+      <CriarPersonagem
+        roomId={roomId}
+        userId={userId}
+        isMestre={isMestre}
+        onCreated={(newChar) => {
+          setCharacters((prev) => [...prev, newChar]);
+          setActiveChar(newChar);
+          setIsCreating(false);
+          fetchTargetList();
+        }}
+        onCancel={characters.length > 0 ? () => setIsCreating(false) : undefined}
+      />
+    );
+  }
+
+  const initialLetter = activeChar?.name ? activeChar.name.charAt(0).toUpperCase() : "P";
+  
+  // Filtra apenas habilidades válidas com nome preenchido
+  const validAbilities = (activeChar?.abilities || []).filter(
+    (a) => a && a.name && a.name.trim() !== ""
+  );
+
+  return (
+    <div className="space-y-3 text-xs text-white">
+      {/* SELETOR DE PERSONAGEM */}
+      <div className="flex items-center gap-1.5 pb-2 border-b border-purple-900/40">
+        {isMestre && characters.length > 0 && (
+          <select
+            value={activeChar?.id || ""}
+            onChange={(e) => {
+              setActiveChar(characters.find((c) => c.id === e.target.value) || null);
+              setIsEditing(false);
+            }}
+            className="flex-1 bg-[#0b0c16] border border-purple-800/40 text-white rounded-lg p-1.5 text-xs focus:outline-none"
+          >
+            {characters.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.is_npc ? "👹 NPC: " : "🛡️ "} {c.name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <button
+          onClick={() => { setIsCreating(true); setIsEditing(false); }}
+          className="px-2 py-1.5 bg-purple-600 hover:bg-cyan-600 font-bold rounded-lg transition text-xs cursor-pointer"
+        >
+          + Novo
+        </button>
+
+        {activeChar && (
+          <>
+            <button
+              onClick={() => {
+                setEditName(activeChar.name);
+                setEditAvatarUrl(activeChar.avatar_url || "");
+                setEditTokenShape(activeChar.token_shape || "circle");
+                setIsEditing(true);
+              }}
+              className="px-2 py-1.5 bg-cyan-950/80 hover:bg-cyan-700 text-cyan-300 border border-cyan-800/50 rounded-lg transition text-xs cursor-pointer"
+            >
+              ✏️
+            </button>
+            <button
+              onClick={handleDeleteCharacter}
+              className="px-2 py-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 border border-red-800/50 rounded-lg transition text-xs cursor-pointer"
+            >
+              🗑️
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* TELA DE EDIÇÃO */}
+      {isEditing && activeChar ? (
+        <div className="space-y-3 bg-[#0b0c16] p-3 rounded-xl border border-cyan-800/50">
+          <div className="flex justify-between items-center border-b border-purple-900/40 pb-1.5">
+            <h3 className="font-bold text-cyan-400">✏️ Editar {activeChar.name}</h3>
+            <button onClick={() => setIsEditing(false)} className="text-gray-400 hover:text-white">✕</button>
+          </div>
+
+          <form onSubmit={handleSaveEdit} className="space-y-2">
+            <div>
+              <label className="text-[10px] text-gray-400 block mb-0.5">Nome</label>
+              <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-2 py-1 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 block mb-0.5">URL Avatar</label>
+              <input type="text" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} className="w-full px-2 py-1 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 block mb-0.5">Formato Token</label>
+              <select value={editTokenShape} onChange={(e: any) => setEditTokenShape(e.target.value)} className="w-full p-1 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs">
+                <option value="circle">⭕ Círculo</option>
+                <option value="square">🔲 Quadrado</option>
+              </select>
+            </div>
+            <button type="submit" className="w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 font-bold rounded text-xs cursor-pointer">Salvar Alterações</button>
+          </form>
+
+          {/* ADICIONAR HABILIDADE */}
+          <div className="pt-2 border-t border-purple-900/40 space-y-1.5">
+            <span className="text-[10px] font-bold text-purple-300 block">➕ Adicionar Habilidade</span>
+            <form onSubmit={handleAddAbility} className="space-y-1.5 bg-[#12131f] p-2 rounded-lg border border-purple-900/40">
+              <input type="text" required placeholder="Nome Habilidade" value={newAbilityName} onChange={(e) => setNewAbilityName(e.target.value)} className="w-full px-2 py-1 bg-[#0b0c16] border border-purple-800/40 rounded text-white text-[11px]" />
+              <div className="grid grid-cols-3 gap-1">
+                <div>
+                  <label className="text-[8px] text-gray-400">Tipo</label>
+                  <select value={newAbilityType} onChange={(e) => setNewAbilityType(e.target.value)} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]">
+                    <option value="Físico">⚔️ Físico</option>
+                    <option value="Distância">🏹 Distância</option>
+                    <option value="Poder">💥 Poder</option>
+                    <option value="Magia">✨ Magia</option>
+                    <option value="Suporte">🛡️ Suporte</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[8px] text-gray-400">Custo ⭐</label>
+                  <input type="number" min="1" max="5" value={newAbilityCost} onChange={(e) => setNewAbilityCost(Number(e.target.value))} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]" />
+                </div>
+                <div>
+                  <label className="text-[8px] text-gray-400">Dado (dX)</label>
+                  <input type="number" min="2" value={newAbilityDie} onChange={(e) => setNewAbilityDie(Number(e.target.value))} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]" />
+                </div>
+              </div>
+              <button type="submit" className="w-full py-1 bg-purple-700 hover:bg-purple-600 text-white font-bold text-[10px] rounded cursor-pointer">+ Cadastrar Habilidade</button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        /* FICHA PRINCIPAL DO PERSONAGEM */
+        activeChar && (
+          <div className="space-y-3">
+            {/* HEADER */}
+            <div className="bg-[#0b0c16] p-2.5 border border-purple-800/40 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                {activeChar.avatar_url ? (
+                  <img src={activeChar.avatar_url} alt={activeChar.name} className={`w-10 h-10 object-cover border-2 ${activeChar.is_npc ? "border-red-500" : "border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`} />
+                ) : (
+                  <div className={`w-10 h-10 flex items-center justify-center font-extrabold text-sm text-white border-2 shadow-md ${activeChar.is_npc ? "bg-gradient-to-tr from-red-900 to-amber-600 border-red-500" : "bg-gradient-to-tr from-purple-700 to-cyan-500 border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`}>
+                    {initialLetter}
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-extrabold text-white text-xs">{activeChar.name}</h3>
+                  <span className="text-[10px] text-cyan-400">
+                    LV {activeChar.level || 1} • <strong className="text-amber-300 font-mono">{activeChar.xp} XP</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* SELEÇÃO DE ALVO */}
+            <div className="bg-[#0b0c16] p-2 rounded-xl border border-purple-800/40 space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-cyan-400 uppercase">🎯 Alvo da Ação:</label>
+                {selectedTargetId && (
+                  <button onClick={() => setSelectedTargetId("")} className="text-[9px] text-gray-400 hover:text-white cursor-pointer">Limpar</button>
+                )}
+              </div>
+              <select value={selectedTargetId} onChange={(e) => setSelectedTargetId(e.target.value)} className="w-full bg-[#12131f] border border-purple-800/50 text-white rounded-lg p-1.5 text-xs focus:outline-none focus:border-cyan-400">
+                <option value="">-- Sem Alvo Selecionado --</option>
+                {targetList.filter((t) => t.id !== activeChar.id).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.is_npc ? "👹 NPC: " : "🛡️ "} {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* VITAIS */}
+            <div className="space-y-2">
+              <div className="bg-[#0b0c16] p-2 rounded-xl border border-red-900/40">
+                <div className="flex justify-between text-[10px] font-bold mb-1">
+                  <span className="text-red-400">❤️ HP: {activeChar.current_hp} / {activeChar.max_hp || 20}</span>
+                </div>
+                <div className="flex gap-1 justify-end">
+                  <button onClick={() => updateStat("current_hp", Math.max(0, activeChar.current_hp - 1))} className="px-2 py-0.5 bg-red-950 text-red-300 rounded font-bold cursor-pointer">-1</button>
+                  <button onClick={() => updateStat("current_hp", Math.min(activeChar.max_hp || 20, activeChar.current_hp + 1))} className="px-2 py-0.5 bg-red-950 text-red-300 rounded font-bold cursor-pointer">+1</button>
+                </div>
+              </div>
+
+              <div className="bg-[#0b0c16] p-2 rounded-xl border border-amber-900/40">
+                <div className="flex justify-between text-[10px] font-bold mb-1">
+                  <span className="text-amber-400">⚡ Stamina: {activeChar.current_stamina} / {activeChar.max_stamina || 10}</span>
+                </div>
+                <div className="flex gap-1 justify-end">
+                  <button onClick={() => updateStat("current_stamina", Math.max(0, activeChar.current_stamina - 1))} className="px-2 py-0.5 bg-amber-950 text-amber-300 rounded font-bold cursor-pointer">-1</button>
+                  <button onClick={() => updateStat("current_stamina", Math.min(activeChar.max_stamina || 10, activeChar.current_stamina + 1))} className="px-2 py-0.5 bg-amber-950 text-amber-300 rounded font-bold cursor-pointer">+1</button>
+                </div>
+              </div>
+
+              <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-cyan-800/40 space-y-2">
+                <div className="flex justify-between text-[10px] font-bold">
+                  <span className="text-cyan-300">⭐ Perícia (Ações):</span>
+                  <span className="text-amber-300">{"⭐".repeat(activeChar.current_pericia)} ({activeChar.current_pericia}/5)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <button onClick={handleSocoBasico} className="py-1 bg-purple-900/60 hover:bg-cyan-600 text-[10px] font-bold text-white rounded-lg transition cursor-pointer">
+                    👊 Soco (0 ⭐) [d6]
+                  </button>
+                  <button onClick={handleDescansar} className="py-1 bg-amber-950 hover:bg-amber-800 text-[10px] font-bold text-amber-200 rounded-lg transition cursor-pointer">
+                    💤 Descansar (+3 ⭐ / +d10 ⚡)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* HABILIDADES */}
+            {validAbilities.length > 0 && (
+              <div className="space-y-1.5 pt-1 border-t border-purple-900/40">
+                <span className="block text-[10px] font-bold uppercase text-cyan-400">⚔️ Habilidades</span>
+                <div className="space-y-1.5">
+                  {validAbilities.map((ability) => (
+                    <div key={ability.id} className="p-2 bg-[#0b0c16] border border-purple-800/40 rounded-lg flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-white text-[11px] block">
+                          {getTypeIcon(ability.type)} {ability.name}
+                        </span>
+                        <span className="text-[9px] text-amber-400">
+                          {"⭐".repeat(ability.cost)} ({ability.cost} ⭐) • Stamina: d{ability.cost * 10} • Dano: d{ability.dieSides}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => handleUseAbility(ability)} className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-[10px] rounded cursor-pointer">
+                          Usar
+                        </button>
+                        {isEditing && (
+                          <button onClick={() => handleDeleteAbility(ability.id)} className="px-1.5 py-1 bg-red-950 text-red-300 text-[9px] rounded font-bold cursor-pointer">
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ATRIBUTOS */}
+            <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
+              <div className="flex justify-between items-center">
+                <span className="block text-[10px] font-bold uppercase text-purple-300">Atributos</span>
+                <span className="text-[9px] text-gray-400 font-semibold">XP: <strong className="text-cyan-300 font-mono">{activeChar.xp}</strong></span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { key: "resiliencia", label: "Resiliência" },
+                  { key: "vontade", label: "Vontade" },
+                  { key: "iniciativa", label: "Iniciativa" },
+                  { key: "precisao", label: "Precisão" },
+                  { key: "forca", label: "Força" },
+                  { key: "intelecto", label: "Intelecto" },
+                ].map((attr) => {
+                  const val = (activeChar.attributes as any)[attr.key] || 0;
+                  const cost = getAttrXpCost(attr.key);
+
+                  return (
+                    <div key={attr.key} className="bg-[#0b0c16] p-2 rounded-lg border border-purple-900/40 space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-gray-300">{attr.label}</span>
+                        <span className="text-[8px] text-amber-400 font-mono font-bold">({cost} XP)</span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handleDecreaseAttribute(attr.key as any)} disabled={val <= 0} className="px-1.5 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer">-</button>
+                          <span className="text-xs font-extrabold text-cyan-300 w-3 text-center">{val}</span>
+                          <button onClick={() => handleIncreaseAttribute(attr.key as any)} disabled={activeChar.xp < cost} className="px-1.5 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer">+</button>
+                        </div>
+
+                        {attr.key === "iniciativa" ? (
+                          <button onClick={handleRollIniciativa} className="px-2 py-0.5 bg-cyan-950 border border-cyan-700 text-[9px] font-bold text-cyan-300 rounded cursor-pointer" title="Rolar Iniciativa e entrar na Fila de Turnos">
+                            🎲 d{6 + val}
+                          </button>
+                        ) : (
+                          <button onClick={() => onRollDice && onRollDice(20, val, attr.label)} className="px-2 py-0.5 bg-purple-950 border border-purple-800 text-[9px] font-bold text-purple-200 rounded cursor-pointer">
+                            🎲 d20
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
