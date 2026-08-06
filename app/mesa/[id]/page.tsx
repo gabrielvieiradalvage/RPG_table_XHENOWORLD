@@ -50,7 +50,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const router = useRouter();
 
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [username, setUsername] = useState<string>("Slodow");
+  const [username, setUsername] = useState<string>("Jogador");
   const [isMestre, setIsMestre] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -104,6 +104,8 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
 
   // CANAL EM TEMPO REAL DO CHAT
   useEffect(() => {
+    if (!roomId) return;
+
     const channel = supabase.channel(`room_chat_${roomId}`, {
       config: { broadcast: { self: false } },
     });
@@ -167,6 +169,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   }, [currentAudio, isPlaying]);
 
   useEffect(() => {
+    if (!roomId) return;
     const interval = setInterval(() => {
       fetchMapTokens();
       fetchRoomSettings();
