@@ -34,10 +34,16 @@ export default function LoginPage() {
     setErrorMsg(null);
 
     try {
+      const redirectUrl = `${window.location.origin}/dashboard`;
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: "offline",
+            prompt: "consent",
+          },
         },
       });
 
@@ -124,7 +130,7 @@ export default function LoginPage() {
           isRegister ? "border-orange-500/40 shadow-orange-950/30" : "border-purple-900/40 glow-purple"
         }`}
       >
-        {/* LADO ESQUERDO: Arte / Banner */}
+        {/* LADO ESQUERDO: Banner */}
         <div className="relative hidden md:flex flex-col justify-end p-8 bg-purple-950/20 overflow-hidden border-r border-purple-900/30 group">
           <img
             src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop"
@@ -156,7 +162,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* LADO DIREITO: Form Dinâmico */}
+        {/* LADO DIREITO: Formulário */}
         <div className="flex flex-col justify-center p-8 sm:p-12 bg-[#12131f]/90">
           <div className="text-left mb-6">
             <h1
@@ -175,7 +181,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* BOTÃO GOOGLE AUTH */}
+          {/* GOOGLE AUTH */}
           {mode !== "recovery" && (
             <>
               <button
@@ -216,14 +222,13 @@ export default function LoginPage() {
             </>
           )}
 
-          {/* Alert de Erro */}
+          {/* Feedback Alerts */}
           {errorMsg && (
             <div className="mb-4 p-3 rounded-xl bg-red-950/60 border border-red-800/80 text-red-300 text-xs">
               ⚠️ {errorMsg}
             </div>
           )}
 
-          {/* Alert de Sucesso */}
           {successMsg && (
             <div
               className={`mb-4 p-3 rounded-xl border text-xs ${
@@ -237,7 +242,6 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Campo Username (Apenas no Cadastro) */}
             {mode === "register" && (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-orange-400 mb-1.5">
@@ -254,7 +258,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Campo E-mail */}
             <div>
               <label
                 className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${
@@ -277,7 +280,6 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Campo Senha */}
             {mode !== "recovery" && (
               <div>
                 <div className="flex justify-between items-center mb-1.5">
@@ -313,7 +315,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Botão de Ação */}
             <button
               type="submit"
               disabled={loading}
@@ -335,7 +336,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Troca de Modos */}
           <div className="mt-6 text-center text-xs text-gray-500 border-t border-purple-900/30 pt-4">
             {mode === "login" && (
               <>
