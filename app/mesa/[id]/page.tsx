@@ -61,7 +61,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   // Abas do Painel
   const [activeTab, setActiveTab] = useState<"ficha" | "tokens" | "mapas" | "audio" | "ia" | "mestre">("ficha");
 
-  // Redimensionamento do Painel Direito
+  // Redimensionamento do Painel Direito (Desktop)
   const [sidebarWidth, setSidebarWidth] = useState<number>(340);
   const [isResizing, setIsResizing] = useState<boolean>(false);
 
@@ -126,7 +126,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     };
   }, [roomId]);
 
-  // CANAL EM TEMPO REAL DE ÁUDIO (SINCRONIZAÇÃO ENTRE MESTRE E JOGADORES)
+  // CANAL EM TEMPO REAL DE ÁUDIO
   useEffect(() => {
     if (!roomId) return;
 
@@ -257,7 +257,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
-  // TRANSMISSÃO EM TEMPO REAL DAS MENSAGENS
   const broadcastChatMessage = (msg: ChatMessage) => {
     if (chatChannelRef.current) {
       chatChannelRef.current.send({
@@ -268,7 +267,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
-  // CONTROLADORES DE ÁUDIO SINCRONIZADOS
   const handlePlayTrack = (track: RoomAudio) => {
     setCurrentAudio(track);
     setIsPlaying(true);
@@ -303,7 +301,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
-  // MOVIMENTAÇÃO DE TOKENS
   const handleDragStart = (e: React.DragEvent, tokenId: string) => {
     if (gameMode !== "exploracao") return;
     e.dataTransfer.setData("tokenId", tokenId);
@@ -379,7 +376,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     await supabase.from("characters").update(updates).eq("id", tokenId);
   };
 
-  // MEDIA UPLOADS
   const handleMapUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !isMestre) return;
@@ -433,7 +429,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
-  // CHAT & IA
   const handleSendMessage = async (text: string, isNpcIa?: boolean) => {
     const senderTag = isMestre ? `${username}(mestre)` : `${username}(membro)`;
 
@@ -520,7 +515,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
 
   if (loading) {
     return (
-      <div className="h-screen w-screen bg-[#080811] text-white flex items-center justify-center">
+      <div className="h-[100dvh] w-screen bg-[#080811] text-white flex items-center justify-center">
         <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -529,8 +524,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const selectedToken = mapTokens.find((t) => t.id === selectedTokenId);
 
   return (
-    <div className="h-screen w-screen bg-[#080811] text-white flex flex-col overflow-hidden select-none touch-none">
-      {/* ELEM. AUDIO PERSISTENTE (CONTINUA TOCANDO EM QUALQUER ABA) */}
+    <div className="h-[100dvh] w-screen bg-[#080811] text-white flex flex-col overflow-hidden select-none touch-none">
       <audio ref={audioRef} loop />
 
       <ConvidarAmigos roomId={roomId} isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
@@ -565,7 +559,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       </header>
 
       {/* CONTEÚDO PRINCIPAL (VIEW SWITCHER NO MOBILE) */}
-      <div className="flex-1 flex overflow-hidden relative w-full">
+      <div className="flex-1 flex overflow-hidden relative w-full h-full">
 
         {/* 1. PAINEL ESQUERDO: CHAT E DADOS */}
         <div className={`h-full md:w-[320px] shrink-0 border-r border-purple-900/40 transition-all ${mobileView === "chat" ? "block w-full" : "hidden md:block"}`}>
@@ -708,6 +702,28 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
               <p className="text-xs text-gray-400 mt-2">{isMestre ? "Acesse a aba 'Mapas' para carregar um cenário." : "Aguarde o Mestre definir o mapa."}</p>
             </div>
           )}
+
+          {/* DOCK TÁTICA DE AÇÕES RÁPIDAS NO CELULAR */}
+          <div className="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 bg-[#0b0c16]/90 border border-purple-800/60 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-2 shadow-2xl z-30">
+            <button
+              onClick={() => handleRollDice(20)}
+              className="px-2.5 py-1 bg-purple-600 active:bg-purple-500 text-white font-bold text-[10px] rounded-full shadow"
+            >
+              🎲 d20
+            </button>
+            <button
+              onClick={() => handleRollDice(6)}
+              className="px-2.5 py-1 bg-cyan-600 active:bg-cyan-500 text-white font-bold text-[10px] rounded-full shadow"
+            >
+              🎲 d6
+            </button>
+            <button
+              onClick={() => setMobileView("painel")}
+              className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-[10px] rounded-full shadow"
+            >
+              📜 Ficha
+            </button>
+          </div>
         </main>
 
         {/* 3. PAINEL DIREITO: FICHA, TOKENS, MAPAS, ÁUDIO, IA E 👑 MESTRE */}
@@ -715,7 +731,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${sidebarWidth}px` : '100%' }}
           className={`h-full bg-[#12131f] border-l border-purple-900/40 flex-col shrink-0 transition-all ${mobileView === "painel" ? "flex w-full" : "hidden md:flex"}`}
         >
-          {/* ZONA INTERATIVA REDIMENSIONÁVEL */}
+          {/* ZONA INTERATIVA REDIMENSIONÁVEL (DESKTOP) */}
           <div
             onMouseDown={() => setIsResizing(true)}
             className="hidden md:flex absolute -left-1.5 top-0 bottom-0 w-3 bg-cyan-500/20 hover:bg-cyan-400/80 cursor-col-resize z-50 transition-colors flex-col items-center justify-center group"
@@ -782,8 +798,8 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
         </aside>
       </div>
 
-      {/* BOTTOM NAVIGATION BAR (CELULAR) */}
-      <nav className="md:hidden h-14 bg-[#0b0c16] border-t border-purple-900/50 flex items-center justify-around z-50 shrink-0">
+      {/* BOTTOM NAVIGATION BAR (FIXO NO CELULAR) */}
+      <nav className="md:hidden h-14 bg-[#0b0c16] border-t border-purple-900/50 flex items-center justify-around z-50 shrink-0 relative">
         <button onClick={() => setMobileView("chat")} className={`flex flex-col items-center gap-0.5 text-[10px] font-bold transition ${mobileView === "chat" ? "text-cyan-400" : "text-gray-500"}`}>
           <span className="text-base">💬</span>
           <span>Chat</span>
