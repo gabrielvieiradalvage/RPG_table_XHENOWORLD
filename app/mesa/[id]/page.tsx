@@ -564,24 +564,26 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </header>
 
-      {/* CONTEÚDO PRINCIPAL */}
-      <div className="flex-1 flex overflow-hidden relative">
+      {/* CONTEÚDO PRINCIPAL (VIEW SWITCHER NO MOBILE) */}
+      <div className="flex-1 flex overflow-hidden relative w-full">
 
         {/* 1. PAINEL ESQUERDO: CHAT E DADOS */}
-        <div className={`flex-1 md:flex-none border-r border-purple-900/40 ${mobileView !== "chat" ? "hidden md:block" : "block w-full"}`}>
-          <Chat
-            messages={messages}
-            onSendMessage={handleSendMessage}
-            onRollDice={(sides) => handleRollDice(sides)}
-            isNpcThinking={isNpcThinking}
-            roomId={roomId}
-            isMestre={isMestre}
-            currentUserId={currentUser?.id}
-          />
+        <div className={`h-full md:w-[320px] shrink-0 border-r border-purple-900/40 transition-all ${mobileView === "chat" ? "block w-full" : "hidden md:block"}`}>
+          <div className="w-full h-full [&>aside]:!w-full [&>aside]:!border-none">
+            <Chat
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              onRollDice={(sides) => handleRollDice(sides)}
+              isNpcThinking={isNpcThinking}
+              roomId={roomId}
+              isMestre={isMestre}
+              currentUserId={currentUser?.id}
+            />
+          </div>
         </div>
 
         {/* 2. CENTRO: CANVAS DO MAPA */}
-        <main className={`flex-1 bg-[#05050a] relative overflow-hidden flex flex-col items-center justify-center ${mobileView !== "mapa" ? "hidden md:flex" : "flex"}`}>
+        <main className={`flex-1 bg-[#05050a] relative overflow-hidden flex-col items-center justify-center ${mobileView === "mapa" ? "flex" : "hidden md:flex"}`}>
           <div className="absolute inset-0 opacity-20 pointer-events-none z-0" style={{ backgroundImage: "radial-gradient(#9D4EDD 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
 
           {activeMapUrl ? (
@@ -710,8 +712,8 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
 
         {/* 3. PAINEL DIREITO: FICHA, TOKENS, MAPAS, ÁUDIO, IA E 👑 MESTRE */}
         <aside
-          style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${sidebarWidth}px` : undefined }}
-          className={`fixed md:relative inset-y-0 right-0 z-40 bg-[#12131f] md:bg-[#12131f]/95 border-l border-purple-900/40 flex flex-col transition-transform duration-300 ${mobileView === "painel" ? "translate-x-0 w-full" : "translate-x-full md:translate-x-0"}`}
+          style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${sidebarWidth}px` : '100%' }}
+          className={`h-full bg-[#12131f] border-l border-purple-900/40 flex-col shrink-0 transition-all ${mobileView === "painel" ? "flex w-full" : "hidden md:flex"}`}
         >
           {/* ZONA INTERATIVA REDIMENSIONÁVEL */}
           <div
@@ -732,13 +734,13 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           </div>
 
           {/* FECHAR NO MOBILE */}
-          <div className="md:hidden flex justify-between items-center p-3 bg-[#0b0c16] border-b border-purple-900/40">
+          <div className="md:hidden flex justify-between items-center p-3 bg-[#0b0c16] border-b border-purple-900/40 shrink-0">
             <span className="text-xs font-bold text-cyan-400">📜 Painel de Controle</span>
-            <button onClick={() => setMobileView("mapa")} className="text-gray-400 hover:text-white font-bold text-sm px-2">✕ Voltar ao Mapa</button>
+            <button onClick={() => setMobileView("mapa")} className="text-gray-400 hover:text-white font-bold text-sm px-2 cursor-pointer">✕ Voltar ao Mapa</button>
           </div>
 
           {/* BARRA DE ABAS */}
-          <div className="flex border-b border-purple-900/40 bg-[#0b0c16] w-full overflow-x-auto scrollbar-none">
+          <div className="flex border-b border-purple-900/40 bg-[#0b0c16] w-full overflow-x-auto scrollbar-none shrink-0">
             {(["ficha", "tokens", "mapas", "audio", "ia", "mestre"] as const).map((tab) => {
               if ((tab === "audio" || tab === "mestre" || tab === "ia") && !isMestre) return null;
 
