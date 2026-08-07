@@ -59,7 +59,6 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
   }, [roomId]);
 
   const fetchTurnData = async () => {
-    // 1. Busca os dados da Sala
     const { data: roomData } = await supabase
       .from("rooms")
       .select("turn_index, round_count")
@@ -71,14 +70,12 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
       if (roomData.round_count !== undefined) setRoundCount(roomData.round_count || 1);
     }
 
-    // 2. Busca os personagens selecionando apenas colunas seguras
     const { data: charData } = await supabase
       .from("characters")
       .select("id, name, avatar_url, token_shape, is_npc, current_hp, max_hp, attributes")
       .eq("room_id", roomId);
 
     if (charData && charData.length > 0) {
-      // Filtra os personagens que têm initiative_roll gravado no JSON attributes
       const activeChars = charData.filter((c: any) => {
         const val = c.attributes?.initiative_roll;
         return val !== null && val !== undefined;
@@ -95,7 +92,6 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
         max_hp: c.max_hp,
       }));
 
-      // Ordena da maior para a menor iniciativa
       formatted.sort((a, b) => (b.initiative_roll || 0) - (a.initiative_roll || 0));
       setTokens(formatted);
     } else {
@@ -103,7 +99,6 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
     }
   };
 
-  // AVANÇAR TURNO
   const handleNextTurn = async () => {
     if (tokens.length === 0) return;
 
@@ -124,7 +119,6 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
     }).eq("id", roomId);
   };
 
-  // REINICIAR COMBATE (SOMENTE MESTRE)
   const handleResetCombat = async () => {
     if (!confirm("Deseja reiniciar a contagem de rodadas e limpar as iniciativas?")) return;
 
@@ -154,19 +148,19 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
   const activeToken = tokens[currentTurnIndex] || tokens[0];
 
   return (
-    <div className="w-full bg-[#0b0c16] border-b border-purple-900/50 shadow-md select-none">
+    <div className="w-full bg-[#0b0c16] border-b border-purple-900/50 shadow-md select-none shrink-0">
       {/* HEADER DO PAINEL DE TURNOS */}
-      <div className="p-2 bg-[#12131f] flex items-center justify-between gap-2 border-b border-purple-900/30">
+      <div className="p-2 sm:p-2.5 bg-[#12131f] flex items-center justify-between gap-2 border-b border-purple-900/30">
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 uppercase tracking-wider hover:text-cyan-300 cursor-pointer"
+          className="flex items-center gap-1.5 text-xs font-bold text-cyan-400 uppercase tracking-wider hover:text-cyan-300 cursor-pointer min-w-0"
         >
-          <span>⚔️ Ordem de Turnos</span>
-          <span className="text-[10px] text-gray-400">{isExpanded ? "▲" : "▼"}</span>
+          <span className="truncate">⚔️ Ordem de Turnos</span>
+          <span className="text-[10px] text-gray-400 shrink-0">{isExpanded ? "▲" : "▼"}</span>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-700/60 px-2 py-0.5 rounded font-mono font-bold">
             Rodada #{roundCount}
           </span>
@@ -175,7 +169,7 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
             <button
               type="button"
               onClick={handleResetCombat}
-              className="px-1.5 py-0.5 bg-red-950/60 hover:bg-red-800 border border-red-800/40 text-red-300 rounded text-[9px] font-bold transition cursor-pointer"
+              className="px-2 py-1 bg-red-950/60 active:bg-red-800 border border-red-800/40 text-red-300 rounded text-[9px] font-bold transition cursor-pointer"
               title="Reiniciar Ordem de Turnos"
             >
               🔄 Limpar
@@ -208,7 +202,7 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
                           : "bg-[#12131f] border-purple-900/40 opacity-70 hover:opacity-100"
                       }`}
                     >
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         {token.avatar_url ? (
                           <img
                             src={token.avatar_url}
@@ -236,8 +230,8 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
                         </span>
                       </div>
 
-                      <div className="flex flex-col">
-                        <span className={`text-[10px] font-bold leading-none max-w-[70px] truncate ${isActive ? "text-cyan-300" : "text-gray-300"}`}>
+                      <div className="flex flex-col min-w-0">
+                        <span className={`text-[10px] font-bold leading-none max-w-[65px] sm:max-w-[80px] truncate ${isActive ? "text-cyan-300" : "text-gray-300"}`}>
                           {token.name}
                         </span>
                         {isActive && (
@@ -252,14 +246,14 @@ export default function Turnos({ roomId, isMestre }: TurnosProps) {
               </div>
 
               {/* RODAPÉ DO TURNO ATIVO */}
-              <div className="flex justify-between items-center bg-[#12131f] px-2.5 py-1.5 rounded-lg border border-purple-900/40">
-                <span className="text-[10px] text-gray-300">
+              <div className="flex justify-between items-center bg-[#12131f] px-2.5 py-1.5 rounded-lg border border-purple-900/40 gap-2">
+                <span className="text-[10px] text-gray-300 truncate min-w-0">
                   Vez de: <strong className="text-cyan-300 font-bold">{activeToken?.name}</strong>
                 </span>
                 <button
                   type="button"
                   onClick={handleNextTurn}
-                  className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-black text-[10px] rounded-md transition hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1"
+                  className="px-2.5 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:from-purple-500 active:to-cyan-500 text-white font-black text-[10px] rounded-md transition cursor-pointer flex items-center gap-1 shrink-0"
                 >
                   <span>Próximo Turno</span>
                   <span>➔</span>

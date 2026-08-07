@@ -57,19 +57,19 @@ export default function Chat({
   };
 
   return (
-    <aside className="w-80 bg-[#12131f]/95 border-r border-purple-900/40 flex flex-col z-10 h-full">
+    <aside className="w-full md:w-80 bg-[#12131f]/95 border-r border-purple-900/40 flex flex-col z-10 h-full overflow-hidden">
       {/* 1. PAINEL DE TURNOS INTEGRADO NO TOPO DO CHAT */}
       <Turnos roomId={roomId} isMestre={isMestre} currentUserId={currentUserId} />
 
       {/* 2. HEADER DO CHAT DA MESA */}
-      <div className="p-3 bg-[#0b0c16] border-b border-purple-900/40 flex justify-between items-center">
+      <div className="p-2.5 sm:p-3 bg-[#0b0c16] border-b border-purple-900/40 flex justify-between items-center shrink-0">
         <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider flex items-center gap-1.5">
           💬 Chat da Mesa
         </span>
         <button
           type="button"
           onClick={() => setTalkToIa(!talkToIa)}
-          className={`px-2 py-0.5 text-[10px] font-bold rounded-full border transition cursor-pointer ${
+          className={`px-2 py-1 text-[10px] font-bold rounded-full border transition cursor-pointer ${
             talkToIa
               ? "bg-green-950 border-green-500 text-green-300 shadow-[0_0_10px_rgba(34,197,94,0.4)]"
               : "bg-[#12131f] border-purple-800/40 text-gray-400 hover:text-white"
@@ -81,7 +81,7 @@ export default function Chat({
       </div>
 
       {/* 3. FEED DE MENSAGENS */}
-      <div className="flex-1 p-3 overflow-y-auto space-y-2.5">
+      <div className="flex-1 p-2.5 sm:p-3 overflow-y-auto space-y-2.5">
         {messages.map((msg) => {
           const isMasterSender = msg.sender.includes("(mestre)");
           const isMemberSender = msg.sender.includes("(membro)");
@@ -123,7 +123,7 @@ export default function Chat({
                 </div>
                 <span className="text-[9px] text-gray-500 shrink-0">{msg.timestamp}</span>
               </div>
-              <p className="font-mono whitespace-pre-wrap">{msg.text}</p>
+              <p className="font-mono whitespace-pre-wrap break-words">{msg.text}</p>
             </div>
           );
         })}
@@ -131,7 +131,7 @@ export default function Chat({
         {/* Indicador de IA Pensando */}
         {isNpcThinking && (
           <div className="p-2 bg-emerald-950/30 border border-emerald-500/40 rounded-xl text-emerald-300 text-[10px] animate-pulse flex items-center gap-2">
-            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-ping shrink-0" />
             <span>Xhenos Mind está formulando resposta do NPC...</span>
           </div>
         )}
@@ -140,7 +140,7 @@ export default function Chat({
       </div>
 
       {/* 4. PAINEL DE DADOS E INPUT */}
-      <div className="p-3 bg-[#0b0c16] border-t border-purple-900/40 space-y-2.5">
+      <div className="p-2.5 sm:p-3 bg-[#0b0c16] border-t border-purple-900/40 space-y-2 shrink-0">
         <span className="block text-[10px] font-bold uppercase tracking-wider text-purple-400 text-center">
           Mesa de Dados
         </span>
@@ -152,7 +152,7 @@ export default function Chat({
               key={sides}
               type="button"
               onClick={() => onRollDice(sides)}
-              className="py-1 bg-[#12131f] hover:bg-purple-800/40 border border-purple-800/40 hover:border-cyan-400 text-cyan-300 hover:text-white text-xs font-bold rounded-lg transition cursor-pointer"
+              className="py-1.5 bg-[#12131f] active:bg-purple-800/60 hover:bg-purple-800/40 border border-purple-800/40 hover:border-cyan-400 text-cyan-300 hover:text-white text-xs font-bold rounded-lg transition cursor-pointer"
             >
               🎲 d{sides}
             </button>
@@ -166,25 +166,25 @@ export default function Chat({
             placeholder="Ex: 12 (dX)"
             value={customDie}
             onChange={(e) => setCustomDie(e.target.value)}
-            className="flex-1 px-3 py-1 bg-[#12131f] border border-purple-800/40 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+            className="flex-1 px-3 py-1.5 bg-[#12131f] border border-purple-800/40 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
           />
           <button
             type="submit"
-            className="px-3 py-1 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-xs rounded-lg transition cursor-pointer"
+            className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:opacity-80 text-white font-bold text-xs rounded-lg transition cursor-pointer shrink-0"
           >
             Rolar
           </button>
         </form>
 
         {/* Input de Texto */}
-        <form onSubmit={handleSend} className="space-y-1.5 pt-1">
+        <form onSubmit={handleSend} className="space-y-1.5 pt-0.5">
           <div className="flex gap-1.5">
             <input
               type="text"
               placeholder={talkToIa ? "Falar com o NPC (Xhenos IA)..." : "Digite algo no chat..."}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              className={`flex-1 px-3 py-1.5 bg-[#12131f] border rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none transition ${
+              className={`flex-1 px-3 py-2 bg-[#12131f] border rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none transition ${
                 talkToIa
                   ? "border-green-500/80 focus:border-green-400"
                   : "border-purple-800/40 focus:border-cyan-400"
@@ -192,10 +192,10 @@ export default function Chat({
             />
             <button
               type="submit"
-              className={`px-3 py-1.5 font-bold text-xs rounded-xl transition cursor-pointer text-white ${
+              className={`px-3 py-2 font-bold text-xs rounded-xl transition cursor-pointer text-white shrink-0 ${
                 talkToIa
-                  ? "bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
-                  : "bg-cyan-600 hover:bg-cyan-500"
+                  ? "bg-emerald-600 active:bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
+                  : "bg-cyan-600 active:bg-cyan-500"
               }`}
             >
               {talkToIa ? "🤖 IA" : "Enviar"}

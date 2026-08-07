@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@theme {
+  --color-background: #080811;
+  --color-foreground: #f8f9fa;
+  --font-sans: Arial, Helvetica, sans-serif;
+}
+
 :root {
   --background: #080811;
   --foreground: #f8f9fa;
@@ -8,15 +14,24 @@
 body {
   color: var(--foreground);
   background-color: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
-/* Efeito de brilho cósmico extra para os nossos botões e bordas */
-.glow-purple {
+@utility glow-purple {
   box-shadow: 0 0 20px rgba(157, 78, 221, 0.35);
 }
 
-.glow-blue {
+@utility glow-blue {
   box-shadow: 0 0 20px rgba(76, 201, 240, 0.35);
+}
+
+@utility scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

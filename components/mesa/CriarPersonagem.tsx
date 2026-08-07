@@ -27,15 +27,11 @@ export default function CriarPersonagem({
   const [isUploading, setIsUploading] = useState(false);
   const [pluginConfig, setPluginConfig] = useState<any>(null);
 
-  // Atributos Genéricos (Funciona para NID ou Plugin)
   const [attributes, setAttributes] = useState<Record<string, number>>({});
-
-  // Recursos Genéricos para Plugins (PV, Sanidade, PE, etc.)
   const [resources, setResources] = useState<Record<string, number>>({});
 
-  // Estados NID FOR END (Fallback)
-  const [ability1, setAbility1] = useState({ name: "", type: "Físico", cost: 1, dieSides: 6 });
-  const [ability2, setAbility2] = useState({ name: "", type: "Distância", cost: 2, dieSides: 8 });
+  const [ability1] = useState({ name: "Ataque Básico", type: "Físico", cost: 1, dieSides: 6 });
+  const [ability2] = useState({ name: "Defesa Tática", type: "Suporte", cost: 2, dieSides: 8 });
 
   useEffect(() => {
     fetchRoomPlugin();
@@ -52,21 +48,18 @@ export default function CriarPersonagem({
       const plugin = data.plugin_config;
       setPluginConfig(plugin);
 
-      // Inicializa atributos do Plugin (Ex: Agilidade = 1, Força = 1...)
       const initialAttrs: Record<string, number> = {};
       plugin.attributes?.forEach((attr: any) => {
         initialAttrs[attr.id] = 1;
       });
       setAttributes(initialAttrs);
 
-      // Inicializa valores máximos dos Recursos
       const initialRes: Record<string, number> = {};
       plugin.resources?.forEach((res: any) => {
-        initialRes[res.id] = 20; // Valor padrão inicial
+        initialRes[res.id] = 20;
       });
       setResources(initialRes);
     } else {
-      // Fallback Nativo (NID FOR END)
       setAttributes({
         resiliencia: 0,
         vontade: 0,
@@ -78,7 +71,6 @@ export default function CriarPersonagem({
     }
   };
 
-  // Helper NID FOR END
   const getHpMaxNid = (r: number, v: number) => 20 + Math.floor((r + v) / 2);
   const getStaminaMaxNid = (r: number) => 10 + r * 5;
 
@@ -137,7 +129,6 @@ export default function CriarPersonagem({
     };
 
     if (pluginConfig) {
-      // SALVA COM AS REGRAS DO PLUGIN
       const customResObj: Record<string, { current: number; max: number }> = {};
       Object.entries(resources).forEach(([key, val]) => {
         customResObj[key] = { current: val, max: val };
@@ -147,7 +138,6 @@ export default function CriarPersonagem({
       newCharData.max_hp = newCharData.current_hp;
       newCharData.custom_resources = customResObj;
     } else {
-      // SALVA COM AS REGRAS NATIVAS DO NID FOR END
       const hp = getHpMaxNid(attributes.resiliencia || 0, attributes.vontade || 0);
       const stamina = getStaminaMaxNid(attributes.resiliencia || 0);
 
@@ -177,13 +167,13 @@ export default function CriarPersonagem({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-[#0b0c16] p-4 rounded-xl border border-purple-800/50 text-xs text-white">
+    <form onSubmit={handleSubmit} className="space-y-3.5 bg-[#0b0c16] p-3.5 sm:p-4 rounded-xl border border-purple-800/50 text-xs text-white w-full max-w-full">
       <div className="flex justify-between items-center pb-2 border-b border-purple-900/40">
-        <h3 className="font-bold text-cyan-400 uppercase text-xs">
+        <h3 className="font-bold text-cyan-400 uppercase text-xs truncate">
           ⚡ Criar Ficha - {pluginConfig?.systemName || "NID FOR END"}
         </h3>
         {onCancel && (
-          <button type="button" onClick={onCancel} className="text-gray-400 hover:text-white cursor-pointer">
+          <button type="button" onClick={onCancel} className="text-gray-400 hover:text-white p-1 cursor-pointer shrink-0">
             ✕
           </button>
         )}
@@ -198,7 +188,7 @@ export default function CriarPersonagem({
           placeholder="Ex: Kaelen"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-1.5 bg-[#12131f] border border-purple-800/50 rounded-lg text-white text-xs focus:outline-none focus:border-cyan-400"
+          className="w-full px-3 py-2 bg-[#12131f] border border-purple-800/50 rounded-lg text-white text-xs focus:outline-none focus:border-cyan-400"
         />
       </div>
 
@@ -210,19 +200,19 @@ export default function CriarPersonagem({
           accept="image/*"
           onChange={handleFileUpload}
           disabled={isUploading}
-          className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-900/60 file:text-purple-200 cursor-pointer"
+          className="w-full text-xs text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-900/60 file:text-purple-200 cursor-pointer"
         />
         {isUploading && <p className="text-[10px] text-cyan-400 animate-pulse mt-1">Enviando imagem...</p>}
       </div>
 
       {/* Formato e Tipo */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Formato Token</label>
           <select
             value={tokenShape}
             onChange={(e: any) => setTokenShape(e.target.value)}
-            className="w-full p-1.5 bg-[#12131f] border border-purple-800/50 rounded-lg text-white cursor-pointer"
+            className="w-full p-2 bg-[#12131f] border border-purple-800/50 rounded-lg text-white cursor-pointer text-xs"
           >
             <option value="circle">⭕ Círculo</option>
             <option value="square">🔲 Quadrado</option>
@@ -235,7 +225,7 @@ export default function CriarPersonagem({
             <select
               value={isNpc ? "true" : "false"}
               onChange={(e) => setIsNpc(e.target.value === "true")}
-              className="w-full p-1.5 bg-[#12131f] border border-purple-800/50 rounded-lg text-white cursor-pointer"
+              className="w-full p-2 bg-[#12131f] border border-purple-800/50 rounded-lg text-white cursor-pointer text-xs"
             >
               <option value="false">🛡️ Jogador</option>
               <option value="true">👹 NPC / Monstro</option>
@@ -244,7 +234,7 @@ export default function CriarPersonagem({
         )}
       </div>
 
-      {/* RECURSOS INICIAIS (SE FOR PLUGIN) */}
+      {/* RECURSOS INICIAIS */}
       {pluginConfig && pluginConfig.resources && (
         <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
           <span className="block text-[10px] font-bold text-cyan-400 uppercase">
@@ -252,14 +242,14 @@ export default function CriarPersonagem({
           </span>
           <div className="grid grid-cols-1 gap-1.5">
             {pluginConfig.resources.map((res: any) => (
-              <div key={res.id} className="bg-[#12131f] p-2 rounded-lg border border-purple-900/40 flex justify-between items-center">
-                <span className="text-[10px] text-gray-300 font-bold">{res.name} Máximo:</span>
+              <div key={res.id} className="bg-[#12131f] p-2 rounded-lg border border-purple-900/40 flex justify-between items-center gap-2">
+                <span className="text-[10px] text-gray-300 font-bold truncate">{res.name} Máximo:</span>
                 <input
                   type="number"
                   min="1"
                   value={resources[res.id] || 20}
                   onChange={(e) => handleResourceChange(res.id, Number(e.target.value))}
-                  className="w-16 bg-[#0b0c16] border border-purple-800/40 rounded px-2 py-0.5 text-center text-white text-xs font-mono font-bold"
+                  className="w-16 bg-[#0b0c16] border border-purple-800/40 rounded px-2 py-1 text-center text-white text-xs font-mono font-bold shrink-0"
                 />
               </div>
             ))}
@@ -267,7 +257,7 @@ export default function CriarPersonagem({
         </div>
       )}
 
-      {/* ATRIBUTOS (ADAPTA PARA PLUGIN OU NID FOR END) */}
+      {/* ATRIBUTOS */}
       <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
         <div className="flex justify-between items-center">
           <span className="block text-[10px] font-bold text-purple-300 uppercase">
@@ -280,7 +270,7 @@ export default function CriarPersonagem({
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
           {(pluginConfig?.attributes || [
             { id: "resiliencia", name: "Resiliência" },
             { id: "vontade", name: "Vontade" },
@@ -289,21 +279,21 @@ export default function CriarPersonagem({
             { id: "forca", name: "Força" },
             { id: "intelecto", name: "Intelecto" },
           ]).map((attr: any) => (
-            <div key={attr.id} className="bg-[#12131f] p-1.5 rounded-lg border border-purple-900/40 flex justify-between items-center">
-              <span className="text-[10px] text-gray-300 truncate max-w-[70px]">{attr.name}</span>
-              <div className="flex items-center gap-1">
+            <div key={attr.id} className="bg-[#12131f] p-2 rounded-lg border border-purple-900/40 flex justify-between items-center">
+              <span className="text-[10px] text-gray-300 truncate">{attr.name}</span>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleAttrChange(attr.id, -1)}
-                  className="px-1.5 bg-purple-950 text-purple-300 rounded font-bold hover:bg-purple-900"
+                  className="w-7 h-7 bg-purple-950 text-purple-300 rounded-lg font-bold active:bg-purple-900 flex items-center justify-center cursor-pointer"
                 >
                   -
                 </button>
-                <span className="font-bold text-cyan-300 w-3 text-center">{attributes[attr.id] ?? 0}</span>
+                <span className="font-bold text-cyan-300 w-4 text-center">{attributes[attr.id] ?? 0}</span>
                 <button
                   type="button"
                   onClick={() => handleAttrChange(attr.id, 1)}
-                  className="px-1.5 bg-purple-950 text-purple-300 rounded font-bold hover:bg-purple-900"
+                  className="w-7 h-7 bg-purple-950 text-purple-300 rounded-lg font-bold active:bg-purple-900 flex items-center justify-center cursor-pointer"
                 >
                   +
                 </button>
@@ -316,7 +306,7 @@ export default function CriarPersonagem({
       <button
         type="submit"
         disabled={isUploading}
-        className="w-full py-2 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 cursor-pointer"
+        className="w-full py-2.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:from-purple-500 active:to-cyan-500 text-white font-bold text-xs rounded-lg disabled:opacity-50 cursor-pointer"
       >
         Salvar Personagem
       </button>

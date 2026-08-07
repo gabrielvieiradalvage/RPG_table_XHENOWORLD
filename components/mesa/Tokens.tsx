@@ -58,7 +58,6 @@ export default function Tokens({ roomId }: TokensProps) {
     setLoading(false);
   };
 
-  // Colocar / Remover do Mapa
   const handleToggleMap = async (tokenId: string, currentlyOnMap: boolean) => {
     const updates = currentlyOnMap
       ? { on_map: false }
@@ -68,7 +67,6 @@ export default function Tokens({ roomId }: TokensProps) {
     fetchTokens();
   };
 
-  // Mover Token para uma Pasta
   const handleMoveToFolder = async (tokenId: string, folderName: string) => {
     const targetFolder = folderName === "none" ? null : folderName;
 
@@ -84,7 +82,6 @@ export default function Tokens({ roomId }: TokensProps) {
     fetchTokens();
   };
 
-  // Criar Nova Pasta
   const handleCreateFolder = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = newFolderName.trim();
@@ -99,7 +96,6 @@ export default function Tokens({ roomId }: TokensProps) {
     setIsCreatingFolder(false);
   };
 
-  // Renomear Pasta
   const handleRenameFolder = async (oldName: string) => {
     const trimmed = renameInput.trim();
     if (!trimmed || trimmed === oldName) {
@@ -121,7 +117,6 @@ export default function Tokens({ roomId }: TokensProps) {
     fetchTokens();
   };
 
-  // Excluir Pasta
   const handleDeleteFolder = async (folderName: string) => {
     if (!confirm(`Deseja apagar a pasta "${folderName}"? Os tokens serão mantidos em "Sem Pasta".`)) {
       return;
@@ -139,7 +134,6 @@ export default function Tokens({ roomId }: TokensProps) {
     fetchTokens();
   };
 
-  // Filtragem dos Tokens por Pasta Ativa
   const filteredTokens = tokens.filter((token) => {
     if (activeFolder === "all") return true;
     if (activeFolder === "unassigned") return !token.folder_name;
@@ -151,16 +145,16 @@ export default function Tokens({ roomId }: TokensProps) {
   }
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-3 text-xs text-white w-full max-w-full">
       {/* Header e Botão de Criar Pasta */}
       <div className="flex justify-between items-center pb-1 border-b border-purple-900/40">
-        <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+        <span className="text-xs font-bold text-purple-300 uppercase tracking-wider truncate min-w-0">
           📂 Gestor de Tokens ({filteredTokens.length}/{tokens.length})
         </span>
         <button
           type="button"
           onClick={() => setIsCreatingFolder(!isCreatingFolder)}
-          className="px-2 py-0.5 bg-purple-900/50 hover:bg-purple-800 border border-purple-700/60 text-purple-200 text-[10px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1"
+          className="px-2.5 py-1.5 bg-purple-900/50 active:bg-purple-800 hover:bg-purple-800 border border-purple-700/60 text-purple-200 text-[10px] font-bold rounded-lg transition cursor-pointer flex items-center gap-1 shrink-0"
         >
           {isCreatingFolder ? "✕ Cancelar" : "➕ Nova Pasta"}
         </button>
@@ -174,12 +168,12 @@ export default function Tokens({ roomId }: TokensProps) {
             placeholder="Nome da Pasta (Ex: Goblins, Chefões...)"
             value={newFolderName}
             onChange={(e) => setNewFolderName(e.target.value)}
-            className="flex-1 bg-[#12131f] border border-purple-900/40 rounded-lg px-2 py-1 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400"
+            className="flex-1 bg-[#12131f] border border-purple-900/40 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400 min-w-0"
             autoFocus
           />
           <button
             type="submit"
-            className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs rounded-lg transition cursor-pointer"
+            className="px-3 py-1.5 bg-cyan-600 active:bg-cyan-500 text-white font-bold text-xs rounded-lg transition cursor-pointer shrink-0"
           >
             Criar
           </button>
@@ -187,11 +181,11 @@ export default function Tokens({ roomId }: TokensProps) {
       )}
 
       {/* Barra de Navegação por Pastas */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-purple-900">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         <button
           type="button"
           onClick={() => setActiveFolder("all")}
-          className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border whitespace-nowrap transition cursor-pointer ${
+          className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap transition cursor-pointer shrink-0 ${
             activeFolder === "all"
               ? "bg-cyan-950 border-cyan-400 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.3)]"
               : "bg-[#0b0c16] border-purple-900/40 text-gray-400 hover:text-white"
@@ -203,7 +197,7 @@ export default function Tokens({ roomId }: TokensProps) {
         <button
           type="button"
           onClick={() => setActiveFolder("unassigned")}
-          className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border whitespace-nowrap transition cursor-pointer ${
+          className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border whitespace-nowrap transition cursor-pointer shrink-0 ${
             activeFolder === "unassigned"
               ? "bg-purple-950 border-purple-500 text-purple-300"
               : "bg-[#0b0c16] border-purple-900/40 text-gray-400 hover:text-white"
@@ -217,14 +211,14 @@ export default function Tokens({ roomId }: TokensProps) {
           const isEditing = editingFolder === folder;
 
           return (
-            <div key={folder} className="flex items-center gap-0.5">
+            <div key={folder} className="flex items-center gap-0.5 shrink-0">
               {isEditing ? (
                 <div className="flex items-center gap-1 bg-[#0b0c16] p-1 rounded-lg border border-cyan-400">
                   <input
                     type="text"
                     value={renameInput}
                     onChange={(e) => setRenameInput(e.target.value)}
-                    className="w-20 bg-[#12131f] text-xs text-white px-1 py-0.5 rounded focus:outline-none"
+                    className="w-20 bg-[#12131f] text-xs text-white px-1.5 py-0.5 rounded focus:outline-none"
                     autoFocus
                   />
                   <button
@@ -247,7 +241,7 @@ export default function Tokens({ roomId }: TokensProps) {
                   <button
                     type="button"
                     onClick={() => setActiveFolder(folder)}
-                    className={`px-2.5 py-1 text-[10px] font-bold rounded-l-lg border-y border-l whitespace-nowrap transition cursor-pointer ${
+                    className={`px-2.5 py-1.5 text-[10px] font-bold rounded-l-lg border-y border-l whitespace-nowrap transition cursor-pointer ${
                       activeFolder === folder
                         ? "bg-emerald-950 border-emerald-500 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
                         : "bg-[#0b0c16] border-purple-900/40 text-gray-400 hover:text-white"
@@ -255,7 +249,7 @@ export default function Tokens({ roomId }: TokensProps) {
                   >
                     📂 {folder} ({count})
                   </button>
-                  <div className="flex border-y border-r border-purple-900/40 rounded-r-lg bg-[#0b0c16] px-1 py-1 gap-1">
+                  <div className="flex border-y border-r border-purple-900/40 rounded-r-lg bg-[#0b0c16] px-1.5 py-1.5 gap-1 items-center">
                     <button
                       type="button"
                       onClick={() => {
@@ -289,32 +283,32 @@ export default function Tokens({ roomId }: TokensProps) {
           Nenhum token nesta pasta.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
           {filteredTokens.map((token) => {
             const initialLetter = token.name ? token.name.charAt(0).toUpperCase() : "T";
 
             return (
               <div
                 key={token.id}
-                className={`flex flex-col items-center gap-2 bg-[#0b0c16] p-2.5 rounded-xl border transition ${
+                className={`flex flex-col items-center gap-2 bg-[#0b0c16] p-2.5 rounded-xl border transition min-w-0 ${
                   token.on_map
                     ? "border-cyan-500/80 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
                     : "border-purple-900/40 hover:border-cyan-400"
                 }`}
               >
                 {/* Avatar / Letra Inicial */}
-                <div className="relative">
+                <div className="relative shrink-0">
                   {token.avatar_url ? (
                     <img
                       src={token.avatar_url}
                       alt={token.name}
-                      className={`w-14 h-14 object-cover border-2 ${
+                      className={`w-12 h-12 sm:w-14 sm:h-14 object-cover border-2 ${
                         token.is_npc ? "border-red-500" : "border-cyan-400"
                       } ${token.token_shape === "circle" ? "rounded-full" : "rounded-xl"}`}
                     />
                   ) : (
                     <div
-                      className={`w-14 h-14 flex items-center justify-center font-extrabold text-lg text-white border-2 shadow-md ${
+                      className={`w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center font-extrabold text-lg text-white border-2 shadow-md ${
                         token.is_npc
                           ? "bg-gradient-to-tr from-red-900 via-rose-700 to-amber-600 border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]"
                           : "bg-gradient-to-tr from-purple-700 via-indigo-600 to-cyan-500 border-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.4)]"
@@ -325,7 +319,7 @@ export default function Tokens({ roomId }: TokensProps) {
                   )}
                 </div>
 
-                <span className="text-[10px] text-gray-200 font-bold truncate max-w-full text-center">
+                <span className="text-[10px] text-gray-200 font-bold truncate max-w-full text-center block">
                   {token.name}
                 </span>
 
@@ -333,7 +327,7 @@ export default function Tokens({ roomId }: TokensProps) {
                 <select
                   value={token.folder_name || "none"}
                   onChange={(e) => handleMoveToFolder(token.id, e.target.value)}
-                  className="w-full bg-[#12131f] border border-purple-800/40 text-[9px] text-gray-300 rounded p-1 focus:outline-none focus:border-cyan-400 cursor-pointer"
+                  className="w-full bg-[#12131f] border border-purple-800/40 text-[9px] text-gray-300 rounded p-1.5 focus:outline-none focus:border-cyan-400 cursor-pointer"
                 >
                   <option value="none">📁 Sem Pasta</option>
                   {folders.map((f) => (
@@ -347,10 +341,10 @@ export default function Tokens({ roomId }: TokensProps) {
                 <button
                   type="button"
                   onClick={() => handleToggleMap(token.id, token.on_map)}
-                  className={`w-full py-1 text-[9px] font-bold rounded uppercase transition cursor-pointer ${
+                  className={`w-full py-1.5 text-[9px] font-bold rounded uppercase transition cursor-pointer ${
                     token.on_map
-                      ? "bg-red-950/80 text-red-300 hover:bg-red-900"
-                      : "bg-cyan-900/50 text-cyan-300 hover:bg-cyan-700"
+                      ? "bg-red-950/80 text-red-300 active:bg-red-900"
+                      : "bg-cyan-900/50 text-cyan-300 active:bg-cyan-700"
                   }`}
                 >
                   {token.on_map ? "Remover do Mapa" : "➕ Ir ao Mapa"}

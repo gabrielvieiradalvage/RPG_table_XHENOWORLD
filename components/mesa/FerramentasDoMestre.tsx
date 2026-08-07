@@ -31,16 +31,13 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
   const [selectedTarget, setSelectedTarget] = useState<string>("all_players");
   const [xpAmount, setXpAmount] = useState<number>(50);
 
-  // Configuração de Descanso e Cura Customizada para o Mestre
   const [recoveryType, setRecoveryType] = useState<"dice" | "fixed">("dice");
   const [recoveryDice, setRecoveryDice] = useState<number>(20);
   const [recoveryFixedAmount, setRecoveryFixedAmount] = useState<number>(50);
 
-  // Configurações do Mapa e Modos
   const [gameMode, setGameMode] = useState<"exploracao" | "combate">("exploracao");
   const [gridType, setGridType] = useState<"quadrado" | "hexagono" | "circulo" | "nenhum">("quadrado");
 
-  // Zona de Combate
   const [combatZone, setCombatZone] = useState<CombatZone>({
     shape: "circulo",
     size: 150,
@@ -152,7 +149,6 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
     fetchRoomAndCharacters();
   };
 
-  // ATUALIZA O BANCO DE DADOS
   const updateRoomSetting = async (field: string, value: any) => {
     await supabase.from("rooms").update({ [field]: value }).eq("id", roomId);
   };
@@ -167,18 +163,16 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
     updateRoomSetting("grid_type", grid);
   };
 
-  // ATUALIZA LOCALMENTE PARA NÃO TRAVAR O BANCO DE DADOS
   const handleZoneChangeLocal = (key: keyof CombatZone, val: any) => {
     setCombatZone({ ...combatZone, [key]: val });
   };
 
-  // SALVA NO BANCO SÓ QUANDO SOLTAR O MOUSE
   const saveZoneToDatabase = () => {
     updateRoomSetting("combat_zone", combatZone);
   };
 
   return (
-    <div className="space-y-4 text-xs text-white">
+    <div className="space-y-3.5 text-xs text-white w-full max-w-full">
       <div className="flex items-center gap-2 pb-2 border-b border-purple-900/40">
         <span className="text-base">👑</span>
         <h3 className="font-bold text-purple-300 uppercase">Painel do Mestre</h3>
@@ -188,7 +182,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
       <div className="bg-[#0b0c16] p-3 rounded-xl border border-purple-800/40 space-y-2.5">
         <span className="block text-[10px] font-bold text-cyan-400 uppercase">🎯 Seleção de Alvo(s)</span>
         <div>
-          <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} className="w-full bg-[#12131f] border border-purple-800/40 text-white rounded-lg p-1.5 text-xs focus:outline-none focus:border-cyan-400">
+          <select value={selectedTarget} onChange={(e) => setSelectedTarget(e.target.value)} className="w-full bg-[#12131f] border border-purple-800/40 text-white rounded-lg p-2 text-xs focus:outline-none focus:border-cyan-400">
             <optgroup label="🌐 Ações em Grupo">
               <option value="all_players">🛡️ Todos os Jogadores ({players.length})</option>
               <option value="all_npcs">👹 Todos os NPCs / Monstros ({npcs.length})</option>
@@ -210,8 +204,8 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
         <div className="pt-2 border-t border-purple-900/40 space-y-2">
           <span className="block text-[10px] font-bold text-amber-300 uppercase">💤 Configuração de Descanso / Cura</span>
           <div className="flex gap-2">
-            <button onClick={() => setRecoveryType("dice")} className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition ${recoveryType === "dice" ? "bg-amber-950 border-amber-500 text-amber-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🎲 Rolar Dado</button>
-            <button onClick={() => setRecoveryType("fixed")} className={`flex-1 py-1 text-[10px] font-bold rounded-lg border transition ${recoveryType === "fixed" ? "bg-cyan-950 border-cyan-500 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🔢 Valor Fixo</button>
+            <button onClick={() => setRecoveryType("dice")} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition ${recoveryType === "dice" ? "bg-amber-950 border-amber-500 text-amber-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🎲 Rolar Dado</button>
+            <button onClick={() => setRecoveryType("fixed")} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition ${recoveryType === "fixed" ? "bg-cyan-950 border-cyan-500 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🔢 Valor Fixo</button>
           </div>
 
           {recoveryType === "dice" ? (
@@ -219,24 +213,24 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
               <label className="block text-[9px] text-gray-400 mb-1">Selecione o Dado de Recuperação:</label>
               <div className="grid grid-cols-5 gap-1">
                 {[10, 20, 30, 50, 100].map((d) => (
-                  <button key={d} onClick={() => setRecoveryDice(d)} className={`py-1 text-[10px] font-bold rounded border ${recoveryDice === d ? "bg-purple-600 border-cyan-400 text-white" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>d{d}</button>
+                  <button key={d} onClick={() => setRecoveryDice(d)} className={`py-1.5 text-[10px] font-bold rounded border ${recoveryDice === d ? "bg-purple-600 border-cyan-400 text-white" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>d{d}</button>
                 ))}
               </div>
             </div>
           ) : (
             <div>
               <label className="block text-[9px] text-gray-400 mb-1">Quantidade Exata a Restaurar:</label>
-              <input type="number" value={recoveryFixedAmount} onChange={(e) => setRecoveryFixedAmount(Number(e.target.value))} className="w-full bg-[#12131f] border border-purple-800/40 rounded px-2 py-1 text-xs text-cyan-300 font-mono font-bold" />
+              <input type="number" value={recoveryFixedAmount} onChange={(e) => setRecoveryFixedAmount(Number(e.target.value))} className="w-full bg-[#12131f] border border-purple-800/40 rounded px-2.5 py-1.5 text-xs text-cyan-300 font-mono font-bold" />
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-1.5 pt-1">
-            <button onClick={handleApplyStaminaRest} className="py-1.5 bg-amber-950 hover:bg-amber-800 text-amber-200 font-bold rounded-lg transition border border-amber-800/50 cursor-pointer text-[10px]">⚡ Dar Descanso</button>
-            <button onClick={handleApplyHpHeal} className="py-1.5 bg-red-950 hover:bg-red-800 text-red-200 font-bold rounded-lg transition border border-red-800/50 cursor-pointer text-[10px]">❤️ Aplicar Cura</button>
+            <button onClick={handleApplyStaminaRest} className="py-2 bg-amber-950 active:bg-amber-800 text-amber-200 font-bold rounded-lg transition border border-amber-800/50 cursor-pointer text-[10px]">⚡ Dar Descanso</button>
+            <button onClick={handleApplyHpHeal} className="py-2 bg-red-950 active:bg-red-800 text-red-200 font-bold rounded-lg transition border border-red-800/50 cursor-pointer text-[10px]">❤️ Aplicar Cura</button>
           </div>
           <div className="flex gap-1.5 pt-1">
-            <button onClick={() => handleFullRestoreAll("stamina")} className="flex-1 py-1 bg-amber-900/40 hover:bg-amber-800 text-amber-300 text-[9px] font-bold rounded border border-amber-800/40 cursor-pointer">⚡ Stamina Full</button>
-            <button onClick={() => handleFullRestoreAll("hp")} className="flex-1 py-1 bg-red-900/40 hover:bg-red-800 text-red-300 text-[9px] font-bold rounded border border-red-800/40 cursor-pointer">❤️ HP Full</button>
+            <button onClick={() => handleFullRestoreAll("stamina")} className="flex-1 py-1.5 bg-amber-900/40 active:bg-amber-800 text-amber-300 text-[9px] font-bold rounded border border-amber-800/40 cursor-pointer">⚡ Stamina Full</button>
+            <button onClick={() => handleFullRestoreAll("hp")} className="flex-1 py-1.5 bg-red-900/40 active:bg-red-800 text-red-300 text-[9px] font-bold rounded border border-red-800/40 cursor-pointer">❤️ HP Full</button>
           </div>
         </div>
 
@@ -244,7 +238,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
         <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
           <label className="block text-[9px] text-gray-400">Quantidade de XP:</label>
           <div className="flex gap-1.5">
-            <input type="number" value={xpAmount} onChange={(e) => setXpAmount(Number(e.target.value))} className="w-20 bg-[#12131f] border border-purple-800/40 rounded-lg p-1 text-center font-mono font-bold text-cyan-300 text-xs" />
+            <input type="number" value={xpAmount} onChange={(e) => setXpAmount(Number(e.target.value))} className="w-20 bg-[#12131f] border border-purple-800/40 rounded-lg p-1.5 text-center font-mono font-bold text-cyan-300 text-xs shrink-0" />
             <button onClick={handleGiveXp} className="flex-1 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold rounded-lg text-[10px]">+ XP</button>
             <button onClick={handleDeductXp} className="flex-1 py-1.5 bg-red-950 text-red-300 font-bold rounded-lg text-[10px]">- XP</button>
           </div>
@@ -252,7 +246,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
 
         {/* REMOVER TOKENS */}
         <div className="pt-2 border-t border-purple-900/40">
-          <button onClick={handleClearMapTokens} className="w-full py-1.5 bg-rose-950 text-rose-200 font-bold rounded-lg text-xs">🧹 Remover Todos os Tokens do Mapa</button>
+          <button onClick={handleClearMapTokens} className="w-full py-2 bg-rose-950 text-rose-200 font-bold rounded-lg text-xs">🧹 Remover Todos os Tokens do Mapa</button>
         </div>
       </div>
 
@@ -261,7 +255,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
         <span className="block text-[10px] font-bold text-purple-300 uppercase">📐 Estilo de Grid Visual</span>
         <div className="grid grid-cols-2 gap-1.5">
           {[ { id: "quadrado", label: "🔲 Quadrado" }, { id: "hexagono", label: "🛑 Hexágono" }, { id: "circulo", label: "⭕ Círculo" }, { id: "nenhum", label: "🚫 Sem Grid" } ].map((grid) => (
-            <button key={grid.id} onClick={() => handleGridChange(grid.id)} className={`py-1.5 text-[11px] font-bold rounded-lg border transition ${gridType === grid.id ? "bg-purple-900/60 border-cyan-400 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>{grid.label}</button>
+            <button key={grid.id} onClick={() => handleGridChange(grid.id)} className={`py-2 text-[11px] font-bold rounded-lg border transition ${gridType === grid.id ? "bg-purple-900/60 border-cyan-400 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>{grid.label}</button>
           ))}
         </div>
       </div>
@@ -270,8 +264,8 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
       <div className="bg-[#0b0c16] p-3 rounded-xl border border-purple-800/40 space-y-3">
         <span className="block text-[10px] font-bold text-amber-400 uppercase">🚨 Modo de Jogo Ativo</span>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => handleGameModeChange("exploracao")} className={`py-2 text-xs font-bold rounded-xl border transition ${gameMode === "exploracao" ? "bg-green-950/80 border-green-500 text-green-300 shadow-lg" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🗺️ Exploração</button>
-          <button onClick={() => handleGameModeChange("combate")} className={`py-2 text-xs font-bold rounded-xl border transition ${gameMode === "combate" ? "bg-red-950/80 border-red-500 text-red-300 shadow-lg animate-pulse" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>⚔️ Combate</button>
+          <button onClick={() => handleGameModeChange("exploracao")} className={`py-2.5 text-xs font-bold rounded-xl border transition ${gameMode === "exploracao" ? "bg-green-950/80 border-green-500 text-green-300 shadow-lg" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🗺️ Exploração</button>
+          <button onClick={() => handleGameModeChange("combate")} className={`py-2.5 text-xs font-bold rounded-xl border transition ${gameMode === "combate" ? "bg-red-950/80 border-red-500 text-red-300 shadow-lg animate-pulse" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>⚔️ Combate</button>
         </div>
 
         {gameMode === "combate" && (
@@ -279,7 +273,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
             <span className="block text-[9px] font-bold text-red-400 uppercase">Configurar Zona Vermelha</span>
             <div>
               <label className="block text-[9px] text-gray-400 mb-1">Formato</label>
-              <select value={combatZone.shape} onChange={(e: any) => { handleZoneChangeLocal("shape", e.target.value); saveZoneToDatabase(); }} className="w-full bg-[#0b0c16] border border-red-900/40 text-white rounded-lg p-1 text-xs">
+              <select value={combatZone.shape} onChange={(e: any) => { handleZoneChangeLocal("shape", e.target.value); saveZoneToDatabase(); }} className="w-full bg-[#0b0c16] border border-red-900/40 text-white rounded-lg p-1.5 text-xs">
                 <option value="circulo">⭕ Círculo</option>
                 <option value="quadrado">🔲 Quadrado</option>
                 <option value="triangulo">🔺 Triângulo</option>
@@ -300,7 +294,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
                 onChange={(e) => handleZoneChangeLocal("size", Number(e.target.value))}
                 onMouseUp={saveZoneToDatabase}
                 onTouchEnd={saveZoneToDatabase}
-                className="w-full accent-red-500 cursor-pointer"
+                className="w-full accent-red-500 cursor-pointer h-2"
               />
             </div>
           </div>

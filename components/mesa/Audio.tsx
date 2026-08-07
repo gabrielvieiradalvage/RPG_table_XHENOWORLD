@@ -34,7 +34,6 @@ export default function Audio({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
-  // Sincroniza a execução do elemento <audio> nativo com as props globais da sala
   useEffect(() => {
     if (!audioRef.current) return;
 
@@ -53,7 +52,6 @@ export default function Audio({
     }
   }, [currentTrack, isPlaying]);
 
-  // Função para desbloquear áudio caso a política de autoplay do navegador bloqueie
   const handleUnlockAutoplay = () => {
     if (audioRef.current && currentTrack) {
       audioRef.current
@@ -64,19 +62,18 @@ export default function Audio({
   };
 
   return (
-    <div className="space-y-4">
-      {/* PLAYER DE ÁUDIO EMBUTIDO (Visível/Invisível para renderizar o áudio da sala) */}
+    <div className="space-y-3.5 w-full">
       <audio ref={audioRef} preload="auto" loop />
 
       {/* ALERTA DE AUTOPLAY BLOQUEADO PELO NAVEGADOR */}
       {autoplayBlocked && currentTrack && (
         <div className="p-3 bg-amber-950/80 border border-amber-600/50 rounded-xl flex items-center justify-between gap-2">
-          <p className="text-xs text-amber-200">
+          <p className="text-[11px] text-amber-200 leading-tight">
             O áudio da sala está tocando. Clique ao lado para sincronizar.
           </p>
           <button
             onClick={handleUnlockAutoplay}
-            className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-xs font-bold text-white rounded-lg transition cursor-pointer shrink-0"
+            className="px-3 py-1.5 bg-amber-600 active:bg-amber-500 text-xs font-bold text-white rounded-lg transition cursor-pointer shrink-0"
           >
             Ativar Áudio 🔊
           </button>
@@ -86,21 +83,21 @@ export default function Audio({
       {/* PAINEL DE ÁUDIO ATIVO */}
       {currentTrack && isPlaying && (
         <div className="p-3 bg-purple-950/40 border border-purple-500/50 rounded-xl flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 truncate">
-            <span className="relative flex h-3 w-3">
+          <div className="flex items-center gap-2 truncate min-w-0">
+            <span className="relative flex h-3 w-3 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
             </span>
-            <div className="truncate">
-              <span className="block text-[10px] uppercase font-bold text-cyan-400">Tocando para todos</span>
-              <span className="text-xs font-semibold text-white truncate">{currentTrack.title}</span>
+            <div className="truncate min-w-0">
+              <span className="block text-[9px] uppercase font-bold text-cyan-400">Tocando para todos</span>
+              <span className="text-xs font-semibold text-white truncate block">{currentTrack.title}</span>
             </div>
           </div>
 
           {isMestre && onStopTrack && (
             <button
               onClick={onStopTrack}
-              className="px-3 py-1 bg-red-900/80 hover:bg-red-700 text-[10px] font-bold text-red-100 rounded-lg transition border border-red-700/50 cursor-pointer shrink-0"
+              className="px-3 py-1.5 bg-red-900/80 active:bg-red-700 text-[10px] font-bold text-red-100 rounded-lg transition border border-red-700/50 cursor-pointer shrink-0"
             >
               Parar ⏹
             </button>
@@ -119,7 +116,7 @@ export default function Audio({
             accept="audio/mp3,audio/wav"
             onChange={onAudioUpload}
             disabled={isUploadingAudio}
-            className="text-xs text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-900/60 file:text-purple-200 hover:file:bg-purple-800 cursor-pointer"
+            className="w-full text-xs text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-900/60 file:text-purple-200 hover:file:bg-purple-800 cursor-pointer"
           />
           {isUploadingAudio && (
             <p className="text-[10px] text-cyan-400 animate-pulse">Enviando MP3...</p>
@@ -145,18 +142,18 @@ export default function Audio({
                     : "bg-[#0b0c16] border-purple-900/40"
                 }`}
               >
-                <span className="text-xs text-white font-medium truncate flex-1">
+                <span className="text-xs text-white font-medium truncate flex-1 min-w-0">
                   🎵 {track.title}
                 </span>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 shrink-0">
                   {isMestre && (
                     <button
                       onClick={() => (isThisPlaying && onStopTrack ? onStopTrack() : onPlayTrack(track))}
-                      className={`px-3 py-1 text-[10px] font-bold rounded-lg transition cursor-pointer ${
+                      className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition cursor-pointer ${
                         isThisPlaying
-                          ? "bg-amber-600 hover:bg-amber-500 text-white"
-                          : "bg-purple-600 hover:bg-cyan-500 text-white"
+                          ? "bg-amber-600 active:bg-amber-500 text-white"
+                          : "bg-purple-600 active:bg-cyan-500 text-white"
                       }`}
                     >
                       {isThisPlaying ? "Pausar ⏸" : "Tocar ▶"}
@@ -167,7 +164,7 @@ export default function Audio({
                     <button
                       onClick={() => onDeleteTrack(track)}
                       title="Excluir Músicas/Áudio"
-                      className="p-1 px-2 bg-red-950/60 hover:bg-red-700/80 text-red-300 hover:text-white rounded-lg transition border border-red-800/40 cursor-pointer text-xs"
+                      className="p-1.5 px-2 bg-red-950/60 active:bg-red-700 text-red-300 active:text-white rounded-lg transition border border-red-800/40 cursor-pointer text-xs"
                     >
                       🗑️
                     </button>

@@ -113,7 +113,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     updateCharacterData(updated, { [field]: value });
   };
 
-  // ROLAGEM DE INICIATIVA E INTEGRAÇÃO COM TURNOS (GRAVADA EM ATTRIBUTES)
   const handleRollIniciativa = async () => {
     if (!activeChar) return;
 
@@ -144,7 +143,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     }
   };
 
-  // EVOLUÇÃO E ATRIBUTOS COM XP
   const handleIncreaseAttribute = (attrKey: keyof Character["attributes"]) => {
     if (!activeChar) return;
     const cost = getAttrXpCost(attrKey as string);
@@ -201,7 +199,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     });
   };
 
-  // EXCLUIR PERSONAGEM
   const handleDeleteCharacter = async () => {
     if (!activeChar) return;
     if (!confirm(`Deseja apagar a ficha de "${activeChar.name}"?`)) return;
@@ -218,7 +215,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     fetchTargetList();
   };
 
-  // EDIÇÃO SIMPLES
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeChar || !editName.trim()) return;
@@ -239,7 +235,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     fetchTargetList();
   };
 
-  // HABILIDADES - CADASTRO LIMPO
   const handleAddAbility = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeChar || !newAbilityName.trim()) return;
@@ -266,7 +261,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     await updateCharacterData({ ...activeChar, abilities: updatedAbilities }, { abilities: updatedAbilities });
   };
 
-  // DESCANSAR
   const handleDescansar = async () => {
     if (!activeChar) return;
 
@@ -282,7 +276,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     }
   };
 
-  // ATAQUE E HABILIDADES
   const handleSocoBasico = async () => {
     const damage = Math.floor(Math.random() * 6) + 1;
     let targetText = "";
@@ -371,14 +364,12 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
   }
 
   const initialLetter = activeChar?.name ? activeChar.name.charAt(0).toUpperCase() : "P";
-  
-  // Filtra apenas habilidades válidas com nome preenchido
   const validAbilities = (activeChar?.abilities || []).filter(
     (a) => a && a.name && a.name.trim() !== ""
   );
 
   return (
-    <div className="space-y-3 text-xs text-white">
+    <div className="space-y-3 text-xs text-white w-full max-w-full">
       {/* SELETOR DE PERSONAGEM */}
       <div className="flex items-center gap-1.5 pb-2 border-b border-purple-900/40">
         {isMestre && characters.length > 0 && (
@@ -388,7 +379,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
               setActiveChar(characters.find((c) => c.id === e.target.value) || null);
               setIsEditing(false);
             }}
-            className="flex-1 bg-[#0b0c16] border border-purple-800/40 text-white rounded-lg p-1.5 text-xs focus:outline-none"
+            className="flex-1 bg-[#0b0c16] border border-purple-800/40 text-white rounded-lg p-2 text-xs focus:outline-none min-w-0"
           >
             {characters.map((c) => (
               <option key={c.id} value={c.id}>
@@ -400,7 +391,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
 
         <button
           onClick={() => { setIsCreating(true); setIsEditing(false); }}
-          className="px-2 py-1.5 bg-purple-600 hover:bg-cyan-600 font-bold rounded-lg transition text-xs cursor-pointer"
+          className="px-2.5 py-2 bg-purple-600 active:bg-cyan-600 font-bold rounded-lg transition text-xs cursor-pointer shrink-0"
         >
           + Novo
         </button>
@@ -414,13 +405,13 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                 setEditTokenShape(activeChar.token_shape || "circle");
                 setIsEditing(true);
               }}
-              className="px-2 py-1.5 bg-cyan-950/80 hover:bg-cyan-700 text-cyan-300 border border-cyan-800/50 rounded-lg transition text-xs cursor-pointer"
+              className="px-2.5 py-2 bg-cyan-950/80 active:bg-cyan-700 text-cyan-300 border border-cyan-800/50 rounded-lg transition text-xs cursor-pointer shrink-0"
             >
               ✏️
             </button>
             <button
               onClick={handleDeleteCharacter}
-              className="px-2 py-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 border border-red-800/50 rounded-lg transition text-xs cursor-pointer"
+              className="px-2.5 py-2 bg-red-950/80 active:bg-red-700 text-red-300 border border-red-800/50 rounded-lg transition text-xs cursor-pointer shrink-0"
             >
               🗑️
             </button>
@@ -433,34 +424,34 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
         <div className="space-y-3 bg-[#0b0c16] p-3 rounded-xl border border-cyan-800/50">
           <div className="flex justify-between items-center border-b border-purple-900/40 pb-1.5">
             <h3 className="font-bold text-cyan-400">✏️ Editar {activeChar.name}</h3>
-            <button onClick={() => setIsEditing(false)} className="text-gray-400 hover:text-white">✕</button>
+            <button onClick={() => setIsEditing(false)} className="text-gray-400 hover:text-white p-1">✕</button>
           </div>
 
           <form onSubmit={handleSaveEdit} className="space-y-2">
             <div>
               <label className="text-[10px] text-gray-400 block mb-0.5">Nome</label>
-              <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-2 py-1 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs" />
+              <input type="text" required value={editName} onChange={(e) => setEditName(e.target.value)} className="w-full px-2 py-1.5 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs" />
             </div>
             <div>
               <label className="text-[10px] text-gray-400 block mb-0.5">URL Avatar</label>
-              <input type="text" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} className="w-full px-2 py-1 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs" />
+              <input type="text" value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} className="w-full px-2 py-1.5 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs" />
             </div>
             <div>
               <label className="text-[10px] text-gray-400 block mb-0.5">Formato Token</label>
-              <select value={editTokenShape} onChange={(e: any) => setEditTokenShape(e.target.value)} className="w-full p-1 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs">
+              <select value={editTokenShape} onChange={(e: any) => setEditTokenShape(e.target.value)} className="w-full p-1.5 bg-[#12131f] border border-purple-800/40 rounded text-white text-xs">
                 <option value="circle">⭕ Círculo</option>
                 <option value="square">🔲 Quadrado</option>
               </select>
             </div>
-            <button type="submit" className="w-full py-1.5 bg-cyan-600 hover:bg-cyan-500 font-bold rounded text-xs cursor-pointer">Salvar Alterações</button>
+            <button type="submit" className="w-full py-2 bg-cyan-600 active:bg-cyan-500 font-bold rounded text-xs cursor-pointer">Salvar Alterações</button>
           </form>
 
           {/* ADICIONAR HABILIDADE */}
           <div className="pt-2 border-t border-purple-900/40 space-y-1.5">
             <span className="text-[10px] font-bold text-purple-300 block">➕ Adicionar Habilidade</span>
-            <form onSubmit={handleAddAbility} className="space-y-1.5 bg-[#12131f] p-2 rounded-lg border border-purple-900/40">
-              <input type="text" required placeholder="Nome Habilidade" value={newAbilityName} onChange={(e) => setNewAbilityName(e.target.value)} className="w-full px-2 py-1 bg-[#0b0c16] border border-purple-800/40 rounded text-white text-[11px]" />
-              <div className="grid grid-cols-3 gap-1">
+            <form onSubmit={handleAddAbility} className="space-y-2 bg-[#12131f] p-2.5 rounded-lg border border-purple-900/40">
+              <input type="text" required placeholder="Nome Habilidade" value={newAbilityName} onChange={(e) => setNewAbilityName(e.target.value)} className="w-full px-2 py-1.5 bg-[#0b0c16] border border-purple-800/40 rounded text-white text-[11px]" />
+              <div className="grid grid-cols-3 gap-1.5">
                 <div>
                   <label className="text-[8px] text-gray-400">Tipo</label>
                   <select value={newAbilityType} onChange={(e) => setNewAbilityType(e.target.value)} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]">
@@ -480,7 +471,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                   <input type="number" min="2" value={newAbilityDie} onChange={(e) => setNewAbilityDie(Number(e.target.value))} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]" />
                 </div>
               </div>
-              <button type="submit" className="w-full py-1 bg-purple-700 hover:bg-purple-600 text-white font-bold text-[10px] rounded cursor-pointer">+ Cadastrar Habilidade</button>
+              <button type="submit" className="w-full py-1.5 bg-purple-700 active:bg-purple-600 text-white font-bold text-[10px] rounded cursor-pointer">+ Cadastrar Habilidade</button>
             </form>
           </div>
         </div>
@@ -492,15 +483,15 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
             <div className="bg-[#0b0c16] p-2.5 border border-purple-800/40 rounded-xl flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 {activeChar.avatar_url ? (
-                  <img src={activeChar.avatar_url} alt={activeChar.name} className={`w-10 h-10 object-cover border-2 ${activeChar.is_npc ? "border-red-500" : "border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`} />
+                  <img src={activeChar.avatar_url} alt={activeChar.name} className={`w-10 h-10 object-cover border-2 shrink-0 ${activeChar.is_npc ? "border-red-500" : "border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`} />
                 ) : (
-                  <div className={`w-10 h-10 flex items-center justify-center font-extrabold text-sm text-white border-2 shadow-md ${activeChar.is_npc ? "bg-gradient-to-tr from-red-900 to-amber-600 border-red-500" : "bg-gradient-to-tr from-purple-700 to-cyan-500 border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`}>
+                  <div className={`w-10 h-10 flex items-center justify-center font-extrabold text-sm text-white border-2 shadow-md shrink-0 ${activeChar.is_npc ? "bg-gradient-to-tr from-red-900 to-amber-600 border-red-500" : "bg-gradient-to-tr from-purple-700 to-cyan-500 border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`}>
                     {initialLetter}
                   </div>
                 )}
-                <div>
-                  <h3 className="font-extrabold text-white text-xs">{activeChar.name}</h3>
-                  <span className="text-[10px] text-cyan-400">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-white text-xs truncate">{activeChar.name}</h3>
+                  <span className="text-[10px] text-cyan-400 block">
                     LV {activeChar.level || 1} • <strong className="text-amber-300 font-mono">{activeChar.xp} XP</strong>
                   </span>
                 </div>
@@ -508,14 +499,14 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
             </div>
 
             {/* SELEÇÃO DE ALVO */}
-            <div className="bg-[#0b0c16] p-2 rounded-xl border border-purple-800/40 space-y-1">
+            <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-purple-800/40 space-y-1">
               <div className="flex justify-between items-center">
                 <label className="text-[10px] font-bold text-cyan-400 uppercase">🎯 Alvo da Ação:</label>
                 {selectedTargetId && (
                   <button onClick={() => setSelectedTargetId("")} className="text-[9px] text-gray-400 hover:text-white cursor-pointer">Limpar</button>
                 )}
               </div>
-              <select value={selectedTargetId} onChange={(e) => setSelectedTargetId(e.target.value)} className="w-full bg-[#12131f] border border-purple-800/50 text-white rounded-lg p-1.5 text-xs focus:outline-none focus:border-cyan-400">
+              <select value={selectedTargetId} onChange={(e) => setSelectedTargetId(e.target.value)} className="w-full bg-[#12131f] border border-purple-800/50 text-white rounded-lg p-2 text-xs focus:outline-none focus:border-cyan-400">
                 <option value="">-- Sem Alvo Selecionado --</option>
                 {targetList.filter((t) => t.id !== activeChar.id).map((t) => (
                   <option key={t.id} value={t.id}>
@@ -527,23 +518,23 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
 
             {/* VITAIS */}
             <div className="space-y-2">
-              <div className="bg-[#0b0c16] p-2 rounded-xl border border-red-900/40">
-                <div className="flex justify-between text-[10px] font-bold mb-1">
+              <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-red-900/40">
+                <div className="flex justify-between items-center text-[10px] font-bold mb-1">
                   <span className="text-red-400">❤️ HP: {activeChar.current_hp} / {activeChar.max_hp || 20}</span>
-                </div>
-                <div className="flex gap-1 justify-end">
-                  <button onClick={() => updateStat("current_hp", Math.max(0, activeChar.current_hp - 1))} className="px-2 py-0.5 bg-red-950 text-red-300 rounded font-bold cursor-pointer">-1</button>
-                  <button onClick={() => updateStat("current_hp", Math.min(activeChar.max_hp || 20, activeChar.current_hp + 1))} className="px-2 py-0.5 bg-red-950 text-red-300 rounded font-bold cursor-pointer">+1</button>
+                  <div className="flex gap-1">
+                    <button onClick={() => updateStat("current_hp", Math.max(0, activeChar.current_hp - 1))} className="px-2.5 py-1 bg-red-950 active:bg-red-800 text-red-300 rounded font-bold cursor-pointer">-1</button>
+                    <button onClick={() => updateStat("current_hp", Math.min(activeChar.max_hp || 20, activeChar.current_hp + 1))} className="px-2.5 py-1 bg-red-950 active:bg-red-800 text-red-300 rounded font-bold cursor-pointer">+1</button>
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-[#0b0c16] p-2 rounded-xl border border-amber-900/40">
-                <div className="flex justify-between text-[10px] font-bold mb-1">
+              <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-amber-900/40">
+                <div className="flex justify-between items-center text-[10px] font-bold mb-1">
                   <span className="text-amber-400">⚡ Stamina: {activeChar.current_stamina} / {activeChar.max_stamina || 10}</span>
-                </div>
-                <div className="flex gap-1 justify-end">
-                  <button onClick={() => updateStat("current_stamina", Math.max(0, activeChar.current_stamina - 1))} className="px-2 py-0.5 bg-amber-950 text-amber-300 rounded font-bold cursor-pointer">-1</button>
-                  <button onClick={() => updateStat("current_stamina", Math.min(activeChar.max_stamina || 10, activeChar.current_stamina + 1))} className="px-2 py-0.5 bg-amber-950 text-amber-300 rounded font-bold cursor-pointer">+1</button>
+                  <div className="flex gap-1">
+                    <button onClick={() => updateStat("current_stamina", Math.max(0, activeChar.current_stamina - 1))} className="px-2.5 py-1 bg-amber-950 active:bg-amber-800 text-amber-300 rounded font-bold cursor-pointer">-1</button>
+                    <button onClick={() => updateStat("current_stamina", Math.min(activeChar.max_stamina || 10, activeChar.current_stamina + 1))} className="px-2.5 py-1 bg-amber-950 active:bg-amber-800 text-amber-300 rounded font-bold cursor-pointer">+1</button>
+                  </div>
                 </div>
               </div>
 
@@ -553,11 +544,11 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                   <span className="text-amber-300">{"⭐".repeat(activeChar.current_pericia)} ({activeChar.current_pericia}/5)</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  <button onClick={handleSocoBasico} className="py-1 bg-purple-900/60 hover:bg-cyan-600 text-[10px] font-bold text-white rounded-lg transition cursor-pointer">
+                  <button onClick={handleSocoBasico} className="py-2 bg-purple-900/60 active:bg-cyan-600 text-[10px] font-bold text-white rounded-lg transition cursor-pointer">
                     👊 Soco (0 ⭐) [d6]
                   </button>
-                  <button onClick={handleDescansar} className="py-1 bg-amber-950 hover:bg-amber-800 text-[10px] font-bold text-amber-200 rounded-lg transition cursor-pointer">
-                    💤 Descansar (+3 ⭐ / +d10 ⚡)
+                  <button onClick={handleDescansar} className="py-2 bg-amber-950 active:bg-amber-800 text-[10px] font-bold text-amber-200 rounded-lg transition cursor-pointer">
+                    💤 Descansar (+3⭐/+d10⚡)
                   </button>
                 </div>
               </div>
@@ -569,21 +560,21 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                 <span className="block text-[10px] font-bold uppercase text-cyan-400">⚔️ Habilidades</span>
                 <div className="space-y-1.5">
                   {validAbilities.map((ability) => (
-                    <div key={ability.id} className="p-2 bg-[#0b0c16] border border-purple-800/40 rounded-lg flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-white text-[11px] block">
+                    <div key={ability.id} className="p-2.5 bg-[#0b0c16] border border-purple-800/40 rounded-lg flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-bold text-white text-[11px] block truncate">
                           {getTypeIcon(ability.type)} {ability.name}
                         </span>
-                        <span className="text-[9px] text-amber-400">
+                        <span className="text-[9px] text-amber-400 block truncate">
                           {"⭐".repeat(ability.cost)} ({ability.cost} ⭐) • Stamina: d{ability.cost * 10} • Dano: d{ability.dieSides}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => handleUseAbility(ability)} className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-[10px] rounded cursor-pointer">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => handleUseAbility(ability)} className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:opacity-80 text-white font-bold text-[10px] rounded cursor-pointer">
                           Usar
                         </button>
                         {isEditing && (
-                          <button onClick={() => handleDeleteAbility(ability.id)} className="px-1.5 py-1 bg-red-950 text-red-300 text-[9px] rounded font-bold cursor-pointer">
+                          <button onClick={() => handleDeleteAbility(ability.id)} className="px-2 py-1.5 bg-red-950 text-red-300 text-[9px] rounded font-bold cursor-pointer">
                             ✕
                           </button>
                         )}
@@ -601,7 +592,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                 <span className="text-[9px] text-gray-400 font-semibold">XP: <strong className="text-cyan-300 font-mono">{activeChar.xp}</strong></span>
               </div>
 
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {[
                   { key: "resiliencia", label: "Resiliência" },
                   { key: "vontade", label: "Vontade" },
@@ -620,19 +611,19 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                         <span className="text-[8px] text-amber-400 font-mono font-bold">({cost} XP)</span>
                       </div>
 
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => handleDecreaseAttribute(attr.key as any)} disabled={val <= 0} className="px-1.5 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer">-</button>
-                          <span className="text-xs font-extrabold text-cyan-300 w-3 text-center">{val}</span>
-                          <button onClick={() => handleIncreaseAttribute(attr.key as any)} disabled={activeChar.xp < cost} className="px-1.5 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer">+</button>
+                          <button onClick={() => handleDecreaseAttribute(attr.key as any)} disabled={val <= 0} className="w-6 h-6 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center">-</button>
+                          <span className="text-xs font-extrabold text-cyan-300 w-4 text-center">{val}</span>
+                          <button onClick={() => handleIncreaseAttribute(attr.key as any)} disabled={activeChar.xp < cost} className="w-6 h-6 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center">+</button>
                         </div>
 
                         {attr.key === "iniciativa" ? (
-                          <button onClick={handleRollIniciativa} className="px-2 py-0.5 bg-cyan-950 border border-cyan-700 text-[9px] font-bold text-cyan-300 rounded cursor-pointer" title="Rolar Iniciativa e entrar na Fila de Turnos">
+                          <button onClick={handleRollIniciativa} className="px-2 py-1 bg-cyan-950 border border-cyan-700 text-[9px] font-bold text-cyan-300 rounded cursor-pointer shrink-0" title="Rolar Iniciativa">
                             🎲 d{6 + val}
                           </button>
                         ) : (
-                          <button onClick={() => onRollDice && onRollDice(20, val, attr.label)} className="px-2 py-0.5 bg-purple-950 border border-purple-800 text-[9px] font-bold text-purple-200 rounded cursor-pointer">
+                          <button onClick={() => onRollDice && onRollDice(20, val, attr.label)} className="px-2 py-1 bg-purple-950 border border-purple-800 text-[9px] font-bold text-purple-200 rounded cursor-pointer shrink-0">
                             🎲 d20
                           </button>
                         )}

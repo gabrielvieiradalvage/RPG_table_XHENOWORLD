@@ -21,7 +21,6 @@ interface IaPersonagensProps {
   onSelectActiveNpc: (npc: any) => void;
 }
 
-// Presets rápidos para facilitar a criação durante a sessão
 const PRESETS_PERSONALIDADE = [
   {
     label: "🛡️ Guardião Rígido",
@@ -58,7 +57,6 @@ export default function IaPersonagens({
 
   const selectedNpc = npcs.find((n) => n.id === selectedNpcId);
 
-  // Carrega a personalidade ao selecionar o NPC
   const handleSelectNpc = (npcId: string) => {
     setSelectedNpcId(npcId);
     const target = npcs.find((n) => n.id === npcId);
@@ -68,7 +66,6 @@ export default function IaPersonagens({
     }
   };
 
-  // Salva a nova personalidade no Supabase
   const handleSavePersonality = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedNpcId) return;
@@ -92,7 +89,7 @@ export default function IaPersonagens({
   };
 
   return (
-    <div className="space-y-4 text-xs">
+    <div className="space-y-3.5 text-xs w-full max-w-full">
       {/* Header do Gerenciador */}
       <div className="p-3 bg-[#0b0c16] border border-emerald-900/40 rounded-xl space-y-1">
         <h3 className="font-bold text-emerald-400 text-sm flex items-center gap-2">
@@ -119,28 +116,28 @@ export default function IaPersonagens({
                 key={npc.id}
                 type="button"
                 onClick={() => handleSelectNpc(npc.id)}
-                className={`p-2 rounded-xl border flex items-center justify-between transition cursor-pointer ${
+                className={`p-2.5 rounded-xl border flex items-center justify-between transition cursor-pointer gap-2 ${
                   selectedNpcId === npc.id
                     ? "bg-emerald-950/50 border-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.2)]"
                     : "bg-[#12131f] border-purple-900/40 text-gray-400 hover:text-white"
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <img
                     src={npc.avatar_url}
                     alt={npc.name}
-                    className="w-7 h-7 rounded-full object-cover border border-purple-500/50"
+                    className="w-7 h-7 rounded-full object-cover border border-purple-500/50 shrink-0"
                   />
-                  <div className="text-left">
-                    <span className="font-bold block text-cyan-300">{npc.name}</span>
-                    <span className="text-[9px] text-gray-400">
+                  <div className="text-left min-w-0">
+                    <span className="font-bold block text-cyan-300 truncate">{npc.name}</span>
+                    <span className="text-[9px] text-gray-400 block truncate">
                       HP: {npc.current_hp}/{npc.max_hp} | Stamina: {npc.current_stamina}/{npc.max_stamina}
                     </span>
                   </div>
                 </div>
                 {selectedNpcId === npc.id && (
-                  <span className="text-[9px] bg-emerald-900 text-emerald-300 border border-emerald-500 px-2 py-0.5 rounded-full font-bold">
-                    ATIVO NA IA
+                  <span className="text-[8px] bg-emerald-900 text-emerald-300 border border-emerald-500 px-2 py-0.5 rounded-full font-bold shrink-0">
+                    ATIVO
                   </span>
                 )}
               </button>
@@ -151,13 +148,13 @@ export default function IaPersonagens({
 
       {/* Formulário de Personalidade */}
       {selectedNpc && (
-        <form onSubmit={handleSavePersonality} className="space-y-3 pt-2">
+        <form onSubmit={handleSavePersonality} className="space-y-3 pt-1">
           <div className="space-y-1.5">
             <label className="block font-bold text-gray-300 uppercase tracking-wider text-[10px]">
               Prompt de Personalidade para ({selectedNpc.name}):
             </label>
             <textarea
-              rows={4}
+              rows={3}
               value={personality}
               onChange={(e) => setPersonality(e.target.value)}
               placeholder="Descreva a personalidade, tom de voz, motivações e segredos do NPC..."
@@ -170,13 +167,13 @@ export default function IaPersonagens({
             <span className="block text-[10px] font-bold text-purple-400 uppercase tracking-wider">
               ⚡ Presets Rápidos:
             </span>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {PRESETS_PERSONALIDADE.map((preset) => (
                 <button
                   key={preset.label}
                   type="button"
                   onClick={() => setPersonality(preset.text)}
-                  className="p-1.5 bg-[#12131f] hover:bg-emerald-950/40 border border-purple-900/40 hover:border-emerald-500 text-[10px] text-gray-300 rounded-lg transition text-left truncate cursor-pointer"
+                  className="p-2 bg-[#12131f] active:bg-emerald-950/40 border border-purple-900/40 hover:border-emerald-500 text-[10px] text-gray-300 rounded-lg transition text-left truncate cursor-pointer"
                   title={preset.text}
                 >
                   {preset.label}
@@ -189,7 +186,7 @@ export default function IaPersonagens({
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-2 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 font-bold text-white rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition cursor-pointer disabled:opacity-50"
+            className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-cyan-600 active:from-emerald-500 active:to-cyan-500 font-bold text-white rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition cursor-pointer disabled:opacity-50"
           >
             {saving ? "Salvando..." : "💾 Salvar Personalidade do NPC"}
           </button>
