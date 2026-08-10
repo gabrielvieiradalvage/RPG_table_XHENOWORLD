@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 export interface NpcProfile {
@@ -12,6 +12,14 @@ export interface NpcProfile {
   current_stamina: number;
   max_stamina: number;
   is_active_ia?: boolean;
+}
+
+export interface SavedIaPrompt {
+  id: string;
+  room_id: string;
+  title: string;
+  personality: string;
+  created_at?: string;
 }
 
 interface IaPersonagensProps {
@@ -55,7 +63,34 @@ export default function IaPersonagens({
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
+  // Biblioteca de Prompts Salvos
+  const [savedPrompts, setSavedPrompts] = useState<SavedIaPrompt[]>([]);
+  const [customTitle, setCustomTitle] = useState("");
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+
   const selectedNpc = npcs.find((n) => n.id === selectedNpcId);
+
+  useEffect(() => {
+    fetchSavedPrompts();
+  }, [roomId]);
+
+  useEffect(() => {
+    if (selectedNpc) {
+      setPersonality(selectedNpc.personality || "");
+    }
+  }, [selectedNpcId]);
+
+  const fetchSavedPrompts = async () => {
+    const { data, error } = await supabase
+      .from("saved_ia_prompts")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setSavedPrompts(data as SavedIaPrompt[]);
+    }
+  };
 
   const handleSelectNpc = (npcId: string) => {
     setSelectedNpcId(npcId);
@@ -83,8 +118,56 @@ export default function IaPersonagens({
     if (error) {
       alert("Erro ao salvar personalidade: " + error.message);
     } else {
-      setSuccessMsg("🧠 Personalidade atualizada com sucesso!");
+      setSuccessMsg("🧠 Personalidade do NPC atualizada na mesa!");
       setTimeout(() => setSuccessMsg(""), 3000);
+    }
+  };
+
+  const handleSaveToLibrary = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customTitle.trim() || !personality.trim()) {
+      alert("Preencha o título e o texto da personalidade antes de salvar na biblioteca.");
+      return;
+    }
+
+    setIsSavingPrompt(true);
+
+    const newPrompt = {
+      room_id: roomId,
+      title: customTitle.trim(),
+      personality: personality.trim(),
+    };
+
+    const { data, error } = await supabase
+      .from("saved_ia_prompts")
+      .insert([newPrompt])
+      .select()
+      .single();
+
+    setIsSavingPrompt(false);
+
+    if (error) {
+      alert("Erro ao salvar na biblioteca: " + error.message);
+    } else if (data) {
+      setSavedPrompts((prev) => [data, ...prev]);
+      setCustomTitle("");
+      setSuccessMsg("⭐ Personalidade salva na sua Biblioteca!");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    }
+  };
+
+  const handleDeleteSavedPrompt = async (id: string, title: string) => {
+    if (!confirm(`Deseja apagar o prompt "${title}" da biblioteca?`)) return;
+
+    const { error } = await supabase
+      .from("saved_ia_prompts")
+      .delete()
+      .eq("id", id);
+
+    if (!error) {
+      setSavedPrompts((prev) => prev.filter((p) => p.id !== id));
+    } else {
+      alert("Erro ao remover prompt: " + error.message);
     }
   };
 
@@ -96,7 +179,7 @@ export default function IaPersonagens({
           🧠 Cérebro de IA dos NPCs
         </h3>
         <p className="text-gray-400 text-[11px] leading-relaxed">
-          Selecione um NPC da mesa para ajustar a forma como a IA (Xhenos Mind) irá interpretá-lo durante o chat.
+          Configure a personalidade do NPC ativo e salve arquétipos marcantes na sua biblioteca para reutilizar em futuras sessões.
         </p>
       </div>
 
@@ -124,7 +207,7 @@ export default function IaPersonagens({
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <img
-                    src={npc.avatar_url}
+                    src={npc.avatar_url || "https://via.placeholder.com/40"}
                     alt={npc.name}
                     className="w-7 h-7 rounded-full object-cover border border-purple-500/50 shrink-0"
                   />
@@ -146,26 +229,109 @@ export default function IaPersonagens({
         )}
       </div>
 
-      {/* Formulário de Personalidade */}
+      {/* Formulário de Personalidade e Biblioteca */}
       {selectedNpc && (
-        <form onSubmit={handleSavePersonality} className="space-y-3 pt-1">
-          <div className="space-y-1.5">
-            <label className="block font-bold text-gray-300 uppercase tracking-wider text-[10px]">
-              Prompt de Personalidade para ({selectedNpc.name}):
-            </label>
-            <textarea
-              rows={3}
-              value={personality}
-              onChange={(e) => setPersonality(e.target.value)}
-              placeholder="Descreva a personalidade, tom de voz, motivações e segredos do NPC..."
-              className="w-full p-2.5 bg-[#12131f] border border-purple-800/40 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400 text-xs font-mono leading-relaxed resize-none"
-            />
+        <div className="space-y-3 pt-1">
+          <form onSubmit={handleSavePersonality} className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="block font-bold text-gray-300 uppercase tracking-wider text-[10px]">
+                Prompt de Personalidade para ({selectedNpc.name}):
+              </label>
+              <textarea
+                rows={4}
+                value={personality}
+                onChange={(e) => setPersonality(e.target.value)}
+                placeholder="Descreva a personalidade, tom de voz, motivações e segredos do NPC..."
+                className="w-full p-2.5 bg-[#12131f] border border-purple-800/40 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-400 text-xs font-mono leading-relaxed resize-none"
+              />
+            </div>
+
+            {/* Botão para aplicar no NPC ativo */}
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-cyan-600 active:from-emerald-500 active:to-cyan-500 font-bold text-white rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition cursor-pointer disabled:opacity-50"
+            >
+              {saving ? "Salvando..." : "💾 Aplicar Personalidade no NPC"}
+            </button>
+          </form>
+
+          {/* SESSÃO: SALVAR NA BIBLIOTECA */}
+          <div className="p-3 bg-[#0b0c16] border border-purple-800/40 rounded-xl space-y-2">
+            <span className="block font-bold text-amber-300 uppercase tracking-wider text-[10px]">
+              ⭐ Salvar este Arquétipo na Biblioteca
+            </span>
+            <form onSubmit={handleSaveToLibrary} className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="Nome/Título (Ex: Guerreiro Kaelen)"
+                value={customTitle}
+                onChange={(e) => setCustomTitle(e.target.value)}
+                className="flex-1 px-2.5 py-1.5 bg-[#12131f] border border-purple-900/50 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-none focus:border-amber-400 min-w-0"
+              />
+              <button
+                type="submit"
+                disabled={isSavingPrompt}
+                className="px-3 py-1.5 bg-amber-600 active:bg-amber-500 text-black font-extrabold text-[10px] rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+              >
+                {isSavingPrompt ? "Salvando..." : "+ Salvar"}
+              </button>
+            </form>
           </div>
 
-          {/* Presets Rápidos */}
-          <div className="space-y-1.5">
-            <span className="block text-[10px] font-bold text-purple-400 uppercase tracking-wider">
-              ⚡ Presets Rápidos:
+          {/* BIBLIOTECA DE PROMPTS SALVOS DA SALA */}
+          {savedPrompts.length > 0 && (
+            <div className="space-y-1.5 pt-1 border-t border-purple-900/40">
+              <span className="block font-bold text-amber-400 uppercase tracking-wider text-[10px]">
+                📚 Suas Personalidades Salvas ({savedPrompts.length}):
+              </span>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {savedPrompts.map((prompt) => (
+                  <div
+                    key={prompt.id}
+                    className="p-2 bg-[#0b0c16] border border-purple-800/40 rounded-xl flex items-center justify-between gap-2"
+                  >
+                    <div
+                      onClick={() => setPersonality(prompt.personality)}
+                      className="flex-1 min-w-0 cursor-pointer hover:opacity-80 transition"
+                      title="Clique para carregar no campo de texto"
+                    >
+                      <span className="font-bold block text-cyan-300 text-[11px] truncate">
+                        📖 {prompt.title}
+                      </span>
+                      <p className="text-[9px] text-gray-400 truncate font-mono">
+                        {prompt.personality}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPersonality(prompt.personality)}
+                        className="px-2 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700/60 rounded text-[9px] font-bold cursor-pointer"
+                        title="Carregar prompt"
+                      >
+                        Usar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSavedPrompt(prompt.id, prompt.title)}
+                        className="p-1 bg-red-950/80 active:bg-red-800 text-red-300 rounded text-[10px] cursor-pointer"
+                        title="Apagar da biblioteca"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* PRESETS PADRÃO DO SISTEMA */}
+          <div className="space-y-1.5 pt-1 border-t border-purple-900/40">
+            <span className="block font-bold text-purple-400 uppercase tracking-wider text-[10px]">
+              ⚡ Presets Rápidos do Sistema:
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {PRESETS_PERSONALIDADE.map((preset) => (
@@ -182,21 +348,12 @@ export default function IaPersonagens({
             </div>
           </div>
 
-          {/* Botão de Salvar */}
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-cyan-600 active:from-emerald-500 active:to-cyan-500 font-bold text-white rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] transition cursor-pointer disabled:opacity-50"
-          >
-            {saving ? "Salvando..." : "💾 Salvar Personalidade do NPC"}
-          </button>
-
           {successMsg && (
-            <p className="text-emerald-400 font-bold text-[10px] text-center animate-pulse">
+            <p className="text-emerald-400 font-bold text-[10px] text-center animate-pulse pt-1">
               {successMsg}
             </p>
           )}
-        </form>
+        </div>
       )}
     </div>
   );
