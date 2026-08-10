@@ -14,6 +14,10 @@ interface CharacterItem {
   current_pericia: number;
   xp: number;
   moedas?: number;
+  attributes?: {
+    escudo?: number;
+    [key: string]: any;
+  };
 }
 
 interface CombatZone {
@@ -54,7 +58,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
   const fetchRoomAndCharacters = async () => {
     const { data: charData } = await supabase
       .from("characters")
-      .select("id, name, is_npc, current_hp, max_hp, current_stamina, max_stamina, current_pericia, xp, moedas")
+      .select("id, name, is_npc, current_hp, max_hp, current_stamina, max_stamina, current_pericia, xp, moedas, attributes")
       .eq("room_id", roomId);
 
     if (charData) setCharacters(charData as CharacterItem[]);
@@ -168,6 +172,24 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
     fetchRoomAndCharacters();
   };
 
+  const handleBreakShields = async () => {
+    const targets = getTargetCharacters();
+    if (targets.length === 0) return alert("Nenhum alvo encontrado.");
+
+    if (!confirm(`Zerar os escudos (Barreira) de ${targets.length} alvo(s)?`)) return;
+
+    for (const char of targets) {
+      const updatedAttrs = {
+        ...(char.attributes || {}),
+        escudo: 0,
+      };
+      await supabase.from("characters").update({ attributes: updatedAttrs }).eq("id", char.id);
+    }
+    
+    alert(`🛡️ Escudos quebrados/zerados para ${targets.length} alvo(s)!`);
+    fetchRoomAndCharacters();
+  };
+
   const handleClearMapTokens = async () => {
     if (!confirm("Remover TODOS os tokens do mapa?")) return;
     await supabase.from("characters").update({ on_map: false }).eq("room_id", roomId);
@@ -215,12 +237,12 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
             </optgroup>
             {players.length > 0 && (
               <optgroup label="🛡️ Jogadores Individuais">
-                {players.map((p) => (<option key={p.id} value={p.id}>{p.name} (HP: {p.current_hp}/{p.max_hp} | ⚡ {p.current_stamina}/{p.max_stamina} | 🪙 {p.moedas ?? 0})</option>))}
+                {players.map((p) => (<option key={p.id} value={p.id}>{p.name} (HP: {p.current_hp}/{p.max_hp} | 🛡️ {p.attributes?.escudo || 0} | 🪙 {p.moedas ?? 0})</option>))}
               </optgroup>
             )}
             {npcs.length > 0 && (
               <optgroup label="👹 NPCs / Monstros Individuais">
-                {npcs.map((n) => (<option key={n.id} value={n.id}>{n.name} (HP: {n.current_hp}/{n.max_hp} | ⚡ {n.current_stamina}/{n.max_stamina} | 🪙 {n.moedas ?? 0})</option>))}
+                {npcs.map((n) => (<option key={n.id} value={n.id}>{n.name} (HP: {n.current_hp}/{n.max_hp} | 🛡️ {n.attributes?.escudo || 0} | 🪙 {n.moedas ?? 0})</option>))}
               </optgroup>
             )}
           </select>
@@ -258,6 +280,17 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
             <button onClick={() => handleFullRestoreAll("stamina")} className="flex-1 py-1.5 bg-amber-900/40 active:bg-amber-800 text-amber-300 text-[9px] font-bold rounded border border-amber-800/40 cursor-pointer">⚡ Stamina Full</button>
             <button onClick={() => handleFullRestoreAll("hp")} className="flex-1 py-1.5 bg-red-900/40 active:bg-red-800 text-red-300 text-[9px] font-bold rounded border border-red-800/40 cursor-pointer">❤️ HP Full</button>
           </div>
+        </div>
+
+        {/* QUEBRAR ESCUDOS */}
+        <div className="pt-2 border-t border-cyan-900/40 space-y-1.5">
+          <label className="block text-[9px] text-cyan-400 uppercase tracking-wider font-bold">🛡️ Gerenciamento de Escudos:</label>
+          <button 
+            onClick={handleBreakShields} 
+            className="w-full py-2 bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 text-cyan-100 font-bold rounded-lg text-xs cursor-pointer shadow-md"
+          >
+            Quebrar Escudos do(s) Alvo(s) Selecionado(s)
+          </button>
         </div>
 
         {/* CONTROLE DE MOEDAS */}

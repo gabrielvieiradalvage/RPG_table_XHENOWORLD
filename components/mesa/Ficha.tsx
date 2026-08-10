@@ -7,7 +7,7 @@ import CriarPersonagem from "./CriarPersonagem";
 export interface Ability {
   id: string;
   name: string;
-  type: string;
+  type: "Físico" | "Distância" | "Magia" | "Cura" | "Suporte" | "Escudo" | string;
   cost: number;
   dieSides: number;
 }
@@ -38,6 +38,8 @@ export interface Character {
     precisao: number;
     forca: number;
     intelecto: number;
+    attribute_points?: number;
+    escudo?: number;
     [key: string]: any;
   };
   abilities: Ability[];
@@ -69,14 +71,13 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   // Nova Habilidade
   const [newAbilityName, setNewAbilityName] = useState("");
-  const [newAbilityType, setNewAbilityType] = useState("Físico");
+  const [newAbilityType, setNewAbilityType] = useState<string>("Físico");
   const [newAbilityCost, setNewAbilityCost] = useState(1);
   const [newAbilityDie, setNewAbilityDie] = useState(6);
 
   // Helpers de Cálculo
   const getHpMax = (r: number, v: number) => 20 + Math.floor((r + v) / 2);
   const getStaminaMax = (r: number) => 10 + r * 5;
-  const getAttrXpCost = (key: string): number => (key === "resiliencia" ? 5 : key === "iniciativa" ? 15 : 10);
 
   // Helper Unificado para Disparar Dados e Alternar para o Chat no Mobile
   const triggerRoll = (sides: number, bonus?: number, label?: string) => {
@@ -134,6 +135,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     updateCharacterData(updated, { moedas: newMoedas });
   };
 
+  // SISTEMA EXCLUSIVO DE EVOLUÇÃO (50 XP = ROLA 1d6 DE PONTOS DE ATRIBUTO)
   const handleLevelUp = async () => {
     if (!activeChar) return;
     const LEVEL_XP_COST = 50;
@@ -143,18 +145,27 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
       return;
     }
 
+    const pointsGained = Math.floor(Math.random() * 6) + 1;
     const newXp = activeChar.xp - LEVEL_XP_COST;
     const newLevel = (activeChar.level || 1) + 1;
+    const currentPoints = activeChar.attributes?.attribute_points || 0;
+    const newPoints = currentPoints + pointsGained;
+
+    const updatedAttrs = {
+      ...(activeChar.attributes || {}),
+      attribute_points: newPoints,
+    };
 
     const updated: Character = {
       ...activeChar,
       xp: newXp,
       level: newLevel,
+      attributes: updatedAttrs as any,
     };
 
-    await updateCharacterData(updated, { xp: newXp, level: newLevel });
+    await updateCharacterData(updated, { xp: newXp, level: newLevel, attributes: updatedAttrs });
 
-    triggerRoll(0, 0, `🎉 ${activeChar.name} subiu para o NÍVEL ${newLevel}! (-50 XP)`);
+    triggerRoll(0, 0, `🎉 ${activeChar.name} subiu para o NÍVEL ${newLevel}! 🎲 Rolou d6 e ganhou +${pointsGained} Pontos de Atributo Livre! (-50 XP)`);
   };
 
   const handleRollIniciativa = async () => {
@@ -187,27 +198,31 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   const handleIncreaseAttribute = (attrKey: keyof Character["attributes"]) => {
     if (!activeChar) return;
-    const cost = getAttrXpCost(attrKey as string);
+    const freePoints = activeChar.attributes?.attribute_points || 0;
 
-    if (activeChar.xp < cost) {
-      alert(`XP insuficiente! Aumentar ${String(attrKey).toUpperCase()} requer ${cost} XP.`);
+    if (freePoints <= 0) {
+      alert("Sem pontos de atributo disponíveis! Suba de nível (50 XP) para rolar o d6 de pontos livres.");
       return;
     }
 
-    const newAttrs = { ...activeChar.attributes, [attrKey]: (activeChar.attributes[attrKey] || 0) + 1 };
-    const newXp = activeChar.xp - cost;
+    const newFreePoints = freePoints - 1;
+    const newAttrs = {
+      ...activeChar.attributes,
+      [attrKey]: (activeChar.attributes[attrKey] || 0) + 1,
+      attribute_points: newFreePoints,
+    };
+
     const newMaxHp = getHpMax(newAttrs.resiliencia, newAttrs.vontade);
     const newMaxStamina = getStaminaMax(newAttrs.resiliencia);
 
     const updated: Character = {
       ...activeChar,
-      xp: newXp,
       attributes: newAttrs,
       max_hp: newMaxHp,
       max_stamina: newMaxStamina,
     };
 
-    updateCharacterData(updated, { xp: newXp, attributes: newAttrs, max_hp: newMaxHp, max_stamina: newMaxStamina });
+    updateCharacterData(updated, { attributes: newAttrs, max_hp: newMaxHp, max_stamina: newMaxStamina });
   };
 
   const handleDecreaseAttribute = (attrKey: keyof Character["attributes"]) => {
@@ -215,15 +230,20 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     const currentVal = activeChar.attributes[attrKey] || 0;
     if (currentVal <= 0) return;
 
-    const refund = getAttrXpCost(attrKey as string);
-    const newAttrs = { ...activeChar.attributes, [attrKey]: currentVal - 1 };
-    const newXp = activeChar.xp + refund;
+    const freePoints = activeChar.attributes?.attribute_points || 0;
+    const newFreePoints = freePoints + 1;
+
+    const newAttrs = {
+      ...activeChar.attributes,
+      [attrKey]: currentVal - 1,
+      attribute_points: newFreePoints,
+    };
+
     const newMaxHp = getHpMax(newAttrs.resiliencia, newAttrs.vontade);
     const newMaxStamina = getStaminaMax(newAttrs.resiliencia);
 
     const updated: Character = {
       ...activeChar,
-      xp: newXp,
       attributes: newAttrs,
       max_hp: newMaxHp,
       max_stamina: newMaxStamina,
@@ -232,7 +252,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     };
 
     updateCharacterData(updated, {
-      xp: newXp,
       attributes: newAttrs,
       max_hp: newMaxHp,
       max_stamina: newMaxStamina,
@@ -316,22 +335,73 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     triggerRoll(0, 0, `💤 Descansou! Recuperou +3 ⭐ de Perícia e +${staminaRecovered}⚡ de Stamina [d10] (${newStamina}/${activeChar.max_stamina})`);
   };
 
+  // HELPER UNIFICADO DE APLICAÇÃO DE DANO (ABSORVE NO ESCUDO PRIMEIRO)
+  const applyDamageToTarget = async (targetId: string, damage: number) => {
+    const { data: targetData } = await supabase
+      .from("characters")
+      .select("id, name, current_hp, attributes")
+      .eq("id", targetId)
+      .single();
+
+    if (!targetData) return "";
+
+    const currentShield = targetData.attributes?.escudo || 0;
+    let newShield = currentShield;
+    let newHp = targetData.current_hp;
+    let logText = "";
+
+    if (currentShield > 0) {
+      if (damage <= currentShield) {
+        newShield = currentShield - damage;
+        logText = ` 🎯 em ${targetData.name} (🛡️ Escudo absorveu ${damage} de dano! Escudo restante: ${newShield})`;
+      } else {
+        const overflowDamage = damage - currentShield;
+        newShield = 0;
+        newHp = Math.max(0, targetData.current_hp - overflowDamage);
+        logText = ` 🎯 em ${targetData.name} (💥 Escudo QUEBROU! Absorveu ${currentShield} e causou ${overflowDamage} no HP! ❤️ HP: ${newHp})`;
+      }
+    } else {
+      newHp = Math.max(0, targetData.current_hp - damage);
+      logText = ` 🎯 em ${targetData.name} (💥 Causou ${damage} de dano! ❤️ HP: ${newHp})`;
+    }
+
+    const updatedAttrs = {
+      ...(targetData.attributes || {}),
+      escudo: newShield,
+    };
+
+    await supabase
+      .from("characters")
+      .update({ current_hp: newHp, attributes: updatedAttrs })
+      .eq("id", targetId);
+
+    if (targetId === activeChar?.id) {
+      setActiveChar((prev) =>
+        prev
+          ? {
+              ...prev,
+              current_hp: newHp,
+              attributes: { ...(prev.attributes || {}), escudo: newShield },
+            }
+          : null
+      );
+    }
+
+    return logText;
+  };
+
   const handleSocoBasico = async () => {
     const damage = Math.floor(Math.random() * 6) + 1;
     let targetText = "";
 
     if (selectedTargetId) {
-      const { data: targetData } = await supabase.from("characters").select("id, name, current_hp").eq("id", selectedTargetId).single();
-      if (targetData) {
-        const newHp = Math.max(0, targetData.current_hp - damage);
-        await supabase.from("characters").update({ current_hp: newHp }).eq("id", selectedTargetId);
-        targetText = ` 🎯 em ${targetData.name} (💥 Causou ${damage} de dano! ❤️ HP: ${newHp})`;
-      }
+      targetText = await applyDamageToTarget(selectedTargetId, damage);
     }
 
     triggerRoll(0, 0, `👊 Soco Básico (0 ⭐): 🎲 [ ${damage} ]${targetText}`);
   };
 
+  // PROCESSAMENTO AUTOMATIZADO DE HABILIDADES
   const handleUseAbility = async (ability: Ability) => {
     if (!activeChar) return;
 
@@ -354,28 +424,88 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
       return;
     }
 
-    const damage = Math.floor(Math.random() * ability.dieSides) + 1;
-    let targetText = "";
+    const rollValue = Math.floor(Math.random() * ability.dieSides) + 1;
+    let actionLog = "";
 
-    if (selectedTargetId) {
-      const { data: targetData } = await supabase.from("characters").select("id, name, current_hp").eq("id", selectedTargetId).single();
+    // 1. TIPO CURA
+    if (ability.type === "Cura") {
+      const targetCharId = selectedTargetId || activeChar.id;
+      const { data: targetData } = await supabase.from("characters").select("id, name, current_hp, max_hp").eq("id", targetCharId).single();
+      
       if (targetData) {
-        const newHp = Math.max(0, targetData.current_hp - damage);
-        await supabase.from("characters").update({ current_hp: newHp }).eq("id", selectedTargetId);
-        targetText = ` 🎯 em ${targetData.name} (💥 Causou ${damage} de dano! ❤️ HP: ${newHp})`;
+        const maxHp = targetData.max_hp || 20;
+        const newHp = Math.min(maxHp, targetData.current_hp + rollValue);
+        await supabase.from("characters").update({ current_hp: newHp }).eq("id", targetCharId);
+
+        if (targetCharId === activeChar.id) {
+          setActiveChar((prev) => prev ? { ...prev, current_hp: newHp } : null);
+        }
+
+        const targetName = targetCharId === activeChar.id ? "si mesmo" : targetData.name;
+        actionLog = `🧪 [Cura] ${activeChar.name} usou "${ability.name}" em ${targetName} e curou +${rollValue} HP! (❤️ HP: ${newHp}/${maxHp})`;
       }
+    } 
+    // 2. TIPO ESCUDO
+    else if (ability.type === "Escudo") {
+      const targetCharId = selectedTargetId || activeChar.id;
+      const { data: targetData } = await supabase.from("characters").select("id, name, attributes").eq("id", targetCharId).single();
+
+      if (targetData) {
+        const currentShield = targetData.attributes?.escudo || 0;
+        const newShield = currentShield + rollValue;
+        const updatedAttrs = {
+          ...(targetData.attributes || {}),
+          escudo: newShield,
+        };
+
+        await supabase
+          .from("characters")
+          .update({ attributes: updatedAttrs })
+          .eq("id", targetCharId);
+
+        if (targetCharId === activeChar.id) {
+          setActiveChar((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  attributes: { ...(prev.attributes || {}), escudo: newShield },
+                }
+              : null
+          );
+        }
+
+        const targetName = targetCharId === activeChar.id ? "si mesmo" : targetData.name;
+        actionLog = `🔰 [Escudo] ${activeChar.name} usou "${ability.name}" em ${targetName} concedendo +${rollValue} de Escudo! (🛡️ Escudo Total: ${newShield})`;
+      }
+    } 
+    // 3. TIPO SUPORTE (BUFF / DEBUFF)
+    else if (ability.type === "Suporte") {
+      const targetName = selectedTargetId 
+        ? (targetList.find((t) => t.id === selectedTargetId)?.name || "Alvo")
+        : "si mesmo";
+
+      actionLog = `🛡️ [Suporte] ${activeChar.name} ativou "${ability.name}" em ${targetName}! (Efeito Tático: 🎲 [ ${rollValue} ])`;
+    } 
+    // 4. ATAQUES (FÍSICO, DISTÂNCIA, MAGIA)
+    else {
+      let targetText = "";
+      if (selectedTargetId) {
+        targetText = await applyDamageToTarget(selectedTargetId, rollValue);
+      }
+      actionLog = `✨ [${ability.type}] ${activeChar.name} usou "${ability.name}": 🎲 d${ability.dieSides} [ ${rollValue} ]${targetText}`;
     }
 
-    triggerRoll(0, 0, `✨ ${ability.name} [${ability.type}]: 🎲 d${ability.dieSides} [ ${damage} ]${targetText} | Custo: -${ability.cost}⭐, -${staminaCost}⚡ Stamina`);
+    triggerRoll(0, 0, `${actionLog} | Custo: -${ability.cost}⭐, -${staminaCost}⚡ Stamina`);
   };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "Físico": return "⚔️";
       case "Distância": return "🏹";
-      case "Poder": return "💥";
       case "Magia": return "✨";
+      case "Cura": return "🧪";
       case "Suporte": return "🛡️";
+      case "Escudo": return "🔰";
       default: return "⚡";
     }
   };
@@ -403,6 +533,8 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
   const validAbilities = (activeChar?.abilities || []).filter(
     (a) => a && a.name && a.name.trim() !== ""
   );
+  const freeAttributePoints = activeChar?.attributes?.attribute_points || 0;
+  const currentShieldValue = activeChar?.attributes?.escudo || 0;
 
   return (
     <div className="space-y-3 text-xs text-white w-full max-w-full">
@@ -482,31 +614,35 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
             <button type="submit" className="w-full py-2 bg-cyan-600 active:bg-cyan-500 font-bold rounded text-xs cursor-pointer">Salvar Alterações</button>
           </form>
 
-          {/* ADICIONAR HABILIDADE */}
+          {/* ADICIONAR HABILIDADE COM CATEGORIAS TÁTICAS */}
           <div className="pt-2 border-t border-purple-900/40 space-y-1.5">
             <span className="text-[10px] font-bold text-purple-300 block">➕ Adicionar Habilidade</span>
             <form onSubmit={handleAddAbility} className="space-y-2 bg-[#12131f] p-2.5 rounded-lg border border-purple-900/40">
-              <input type="text" required placeholder="Nome Habilidade" value={newAbilityName} onChange={(e) => setNewAbilityName(e.target.value)} className="w-full px-2 py-1.5 bg-[#0b0c16] border border-purple-800/40 rounded text-white text-[11px]" />
-              <div className="grid grid-cols-3 gap-1.5">
+              <input type="text" required placeholder="Nome da Habilidade" value={newAbilityName} onChange={(e) => setNewAbilityName(e.target.value)} className="w-full px-2 py-1.5 bg-[#0b0c16] border border-purple-800/40 rounded text-white text-[11px]" />
+              
+              <div>
+                <label className="text-[8px] text-gray-400 block mb-0.5">Classificação Tática</label>
+                <select value={newAbilityType} onChange={(e) => setNewAbilityType(e.target.value)} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1.5 text-[10px]">
+                  <option value="Físico">⚔️ Ataque Físico (Dano Corporal)</option>
+                  <option value="Distância">🏹 Ataque a Distância (Projétil)</option>
+                  <option value="Magia">✨ Magia (Dano Arcano/Elementar)</option>
+                  <option value="Cura">🧪 Cura (Restaura HP do Alvo)</option>
+                  <option value="Suporte">🛡️ Suporte (Buffs / Debuffs)</option>
+                  <option value="Escudo">🔰 Escudo (Barreira Absorvente)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5">
                 <div>
-                  <label className="text-[8px] text-gray-400">Tipo</label>
-                  <select value={newAbilityType} onChange={(e) => setNewAbilityType(e.target.value)} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]">
-                    <option value="Físico">⚔️ Físico</option>
-                    <option value="Distância">🏹 Distância</option>
-                    <option value="Poder">💥 Poder</option>
-                    <option value="Magia">✨ Magia</option>
-                    <option value="Suporte">🛡️ Suporte</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[8px] text-gray-400">Custo ⭐</label>
+                  <label className="text-[8px] text-gray-400">Custo ⭐ (Perícia)</label>
                   <input type="number" min="1" max="5" value={newAbilityCost} onChange={(e) => setNewAbilityCost(Number(e.target.value))} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]" />
                 </div>
                 <div>
-                  <label className="text-[8px] text-gray-400">Dado (dX)</label>
+                  <label className="text-[8px] text-gray-400">Dado de Efeito (dX)</label>
                   <input type="number" min="2" value={newAbilityDie} onChange={(e) => setNewAbilityDie(Number(e.target.value))} className="w-full bg-[#0b0c16] border border-purple-800/40 text-white rounded p-1 text-[10px]" />
                 </div>
               </div>
+
               <button type="submit" className="w-full py-1.5 bg-purple-700 active:bg-purple-600 text-white font-bold text-[10px] rounded cursor-pointer">+ Cadastrar Habilidade</button>
             </form>
           </div>
@@ -533,18 +669,17 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                 </div>
               </div>
 
-              {/* BOTÃO DE EVOLUÇÃO DE LEVEL (CUSTA 50 XP) */}
               <button
                 onClick={handleLevelUp}
                 disabled={activeChar.xp < 50}
-                className={`px-2 py-1 text-[9px] font-bold rounded-lg border transition cursor-pointer shrink-0 ${
+                className={`px-2.5 py-1.5 text-[9px] font-bold rounded-lg border transition cursor-pointer shrink-0 ${
                   activeChar.xp >= 50
-                    ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-300 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse"
+                    ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-300 shadow-[0_0_12px_rgba(245,158,11,0.6)] animate-pulse"
                     : "bg-[#12131f] border-purple-900/40 text-gray-500 opacity-60 cursor-not-allowed"
                 }`}
-                title="Consome 50 XP para avançar 1 nível"
+                title="Consome 50 XP e rola 1d6 para ganhar Pontos de Atributo Livre"
               >
-                {activeChar.xp >= 50 ? "⚡ Subir LV! (50 XP)" : "Subir LV (50 XP)"}
+                {activeChar.xp >= 50 ? "⚡ Subir LV! (d6 Pts)" : "Subir LV (50 XP)"}
               </button>
             </div>
 
@@ -599,12 +734,19 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
               </select>
             </div>
 
-            {/* VITAIS */}
+            {/* VITAIS COM EXIBIÇÃO EM TEMPO REAL DO ESCUDO */}
             <div className="space-y-2">
               <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-red-900/40">
                 <div className="flex justify-between items-center text-[10px] font-bold mb-1">
-                  <span className="text-red-400">❤️ HP: {activeChar.current_hp} / {activeChar.max_hp || 20}</span>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-red-400">❤️ HP: {activeChar.current_hp} / {activeChar.max_hp || 20}</span>
+                    {currentShieldValue > 0 && (
+                      <span className="text-cyan-300 font-bold bg-cyan-950/80 border border-cyan-500/60 px-1.5 py-0.2 rounded font-mono">
+                        (+{currentShieldValue} 🛡️ Escudo)
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
                     <button onClick={() => updateStat("current_hp", Math.max(0, activeChar.current_hp - 1))} className="px-2.5 py-1 bg-red-950 active:bg-red-800 text-red-300 rounded font-bold cursor-pointer">-1</button>
                     <button onClick={() => updateStat("current_hp", Math.min(activeChar.max_hp || 20, activeChar.current_hp + 1))} className="px-2.5 py-1 bg-red-950 active:bg-red-800 text-red-300 rounded font-bold cursor-pointer">+1</button>
                   </div>
@@ -649,7 +791,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                           {getTypeIcon(ability.type)} {ability.name}
                         </span>
                         <span className="text-[9px] text-amber-400 block truncate">
-                          {"⭐".repeat(ability.cost)} ({ability.cost} ⭐) • Stamina: d{ability.cost * 10} • Dano: d{ability.dieSides}
+                          {"⭐".repeat(ability.cost)} ({ability.cost} ⭐) • Stamina: d{ability.cost * 10} • Efeito: d{ability.dieSides}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
@@ -668,11 +810,20 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
               </div>
             )}
 
-            {/* ATRIBUTOS */}
+            {/* ATRIBUTOS EXCLUSIVAMENTE COM PONTOS LIVRES DO D6 */}
             <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-1">
                 <span className="block text-[10px] font-bold uppercase text-purple-300">Atributos</span>
-                <span className="text-[9px] text-gray-400 font-semibold">XP Disponível: <strong className="text-cyan-300 font-mono">{activeChar.xp}</strong></span>
+                <div className="flex items-center gap-2 text-[9px]">
+                  <span className={`px-2 py-0.5 rounded font-bold ${
+                    freeAttributePoints > 0
+                      ? "bg-amber-950 text-amber-300 border border-amber-500/60 animate-pulse"
+                      : "bg-[#12131f] text-gray-400 border border-purple-900/40"
+                  }`}>
+                    🎲 Pts Livres: {freeAttributePoints}
+                  </span>
+                  <span className="text-gray-400 font-semibold">XP: <strong className="text-cyan-300 font-mono">{activeChar.xp}</strong></span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -685,20 +836,21 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                   { key: "intelecto", label: "Intelecto" },
                 ].map((attr) => {
                   const val = (activeChar.attributes as any)[attr.key] || 0;
-                  const cost = getAttrXpCost(attr.key);
 
                   return (
                     <div key={attr.key} className="bg-[#0b0c16] p-2 rounded-lg border border-purple-900/40 space-y-1">
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] font-bold text-gray-300">{attr.label}</span>
-                        <span className="text-[8px] text-amber-400 font-mono font-bold">({cost} XP)</span>
+                        <span className="text-[8px] text-amber-400 font-mono font-bold">
+                          (1 Pt)
+                        </span>
                       </div>
 
                       <div className="flex items-center justify-between gap-1">
                         <div className="flex items-center gap-1">
                           <button onClick={() => handleDecreaseAttribute(attr.key as any)} disabled={val <= 0} className="w-6 h-6 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center">-</button>
                           <span className="text-xs font-extrabold text-cyan-300 w-4 text-center">{val}</span>
-                          <button onClick={() => handleIncreaseAttribute(attr.key as any)} disabled={activeChar.xp < cost} className="w-6 h-6 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center">+</button>
+                          <button onClick={() => handleIncreaseAttribute(attr.key as any)} disabled={freeAttributePoints <= 0} className="w-6 h-6 bg-purple-950 text-purple-300 rounded font-bold disabled:opacity-30 cursor-pointer flex items-center justify-center">+</button>
                         </div>
 
                         {attr.key === "iniciativa" ? (
