@@ -79,9 +79,11 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const [gridType, setGridType] = useState<"quadrado" | "hexagono" | "circulo" | "nenhum">("quadrado");
   const [combatZone, setCombatZone] = useState<CombatZone>({ shape: "circulo", size: 150, x: 50, y: 50 });
 
-  // MOVIMENTAÇÃO TÁTICA
+  // MOVIMENTAÇÃO TÁTICA E TOUCH DRAG
+  const mapRef = useRef<HTMLDivElement | null>(null);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const [touchDraggingTokenId, setTouchDraggingTokenId] = useState<string | null>(null);
 
   // ÁUDIO E SINCRONIZAÇÃO EM TEMPO REAL
   const [playlist, setPlaylist] = useState<RoomAudio[]>([]);
@@ -302,6 +304,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
+  // DESKTOP DRAG AND DROP
   const handleDragStart = (e: React.DragEvent, tokenId: string) => {
     if (gameMode !== "exploracao") return;
     e.dataTransfer.setData("tokenId", tokenId);
@@ -325,6 +328,42 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     if (token) handleSendMessage(`🗺️ ${token.name} se moveu.`);
   };
 
+  // MOBILE TOUCH DRAGGING (MODO EXPLORAÇÃO)
+  const handleTouchStartToken = (e: React.TouchEvent, tokenId: string) => {
+    if (gameMode !== "exploracao") return;
+    e.stopPropagation();
+    setTouchDraggingTokenId(tokenId);
+  };
+
+  const handleTouchMoveMap = (e: React.TouchEvent) => {
+    if (gameMode !== "exploracao" || !touchDraggingTokenId || !mapRef.current) return;
+
+    const touch = e.touches[0];
+    const mapRect = mapRef.current.getBoundingClientRect();
+    const targetX = Math.max(0, Math.min(100, ((touch.clientX - mapRect.left) / mapRect.width) * 100));
+    const targetY = Math.max(0, Math.min(100, ((touch.clientY - mapRect.top) / mapRect.height) * 100));
+
+    setMapTokens((prev) =>
+      prev.map((t) => (t.id === touchDraggingTokenId ? { ...t, pos_x: targetX, pos_y: targetY } : t))
+    );
+  };
+
+  const handleTouchEndMap = async () => {
+    if (gameMode !== "exploracao" || !touchDraggingTokenId) return;
+
+    const token = mapTokens.find((t) => t.id === touchDraggingTokenId);
+    if (token) {
+      await supabase
+        .from("characters")
+        .update({ pos_x: token.pos_x, pos_y: token.pos_y })
+        .eq("id", token.id);
+      handleSendMessage(`🗺️ ${token.name} se moveu.`);
+    }
+
+    setTouchDraggingTokenId(null);
+  };
+
+  // SELEÇÃO E NAVEGAÇÃO NO MODO COMBATE
   const handleSelectToken = (e: React.MouseEvent | React.TouchEvent, tokenId: string) => {
     e.stopPropagation();
     if (gameMode === "exploracao") return;
@@ -582,7 +621,15 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           <div className="absolute inset-0 opacity-20 pointer-events-none z-0" style={{ backgroundImage: "radial-gradient(#9D4EDD 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
 
           {activeMapUrl ? (
-            <div className={`relative inline-block shadow-2xl rounded-lg overflow-hidden touch-none ${gameMode === "combate" ? "cursor-crosshair" : "cursor-default"}`} onClick={handleMapClick} onDragOver={(e) => gameMode === "exploracao" && e.preventDefault()} onDrop={handleDropOnMap}>
+            <div
+              ref={mapRef}
+              onTouchMove={handleTouchMoveMap}
+              onTouchEnd={handleTouchEndMap}
+              className={`relative inline-block shadow-2xl rounded-lg overflow-hidden touch-none ${gameMode === "combate" ? "cursor-crosshair" : "cursor-default"}`}
+              onClick={handleMapClick}
+              onDragOver={(e) => gameMode === "exploracao" && e.preventDefault()}
+              onDrop={handleDropOnMap}
+            >
               <img
                 src={activeMapUrl}
                 alt="Mapa da Mesa"
@@ -667,7 +714,15 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
                 const initialLetter = token.name ? token.name.charAt(0).toUpperCase() : "T";
 
                 return (
-                  <div key={token.id} draggable={gameMode === "exploracao"} onDragStart={(e) => handleDragStart(e, token.id)} onClick={(e) => handleSelectToken(e, token.id)} onTouchEnd={(e) => handleSelectToken(e, token.id)} className={`absolute group/token transition-all duration-300 ${gameMode === "exploracao" ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isSelected ? "z-40 scale-110" : "z-20 hover:z-30"}`} style={{ left: `${posX}%`, top: `${posY}%`, transform: "translate(-50%, -50%)", width: `${tokenScale}px`, height: `${tokenScale}px` }}>
+                  <div
+                    key={token.id}
+                    draggable={gameMode === "exploracao"}
+                    onDragStart={(e) => handleDragStart(e, token.id)}
+                    onTouchStart={(e) => handleTouchStartToken(e, token.id)}
+                    onClick={(e) => handleSelectToken(e, token.id)}
+                    className={`absolute group/token transition-all duration-300 ${gameMode === "exploracao" ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isSelected ? "z-40 scale-110" : "z-20 hover:z-30"}`}
+                    style={{ left: `${posX}%`, top: `${posY}%`, transform: "translate(-50%, -50%)", width: `${tokenScale}px`, height: `${tokenScale}px` }}
+                  >
                     <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-14 space-y-0.5 opacity-80 group-hover/token:opacity-100 transition-opacity pointer-events-none">
                       <div className="w-full bg-red-950 h-1.5 rounded-full overflow-hidden border border-black relative">
                         <div className="bg-gradient-to-r from-red-600 to-rose-400 h-full transition-all duration-300" style={{ width: `${hpPercent}%` }} />
