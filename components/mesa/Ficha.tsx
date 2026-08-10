@@ -22,6 +22,8 @@ export interface Character {
   is_npc: boolean;
   level: number;
   xp: number;
+  moedas?: number;
+  inventory?: any[];
   current_hp: number;
   max_hp: number;
   current_stamina: number;
@@ -46,9 +48,10 @@ interface FichaProps {
   userId: string;
   isMestre: boolean;
   onRollDice?: (sides: number, bonus?: number, label?: string) => void;
+  onOpenChat?: () => void;
 }
 
-export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaProps) {
+export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat }: FichaProps) {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [activeChar, setActiveChar] = useState<Character | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,6 +77,16 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
   const getHpMax = (r: number, v: number) => 20 + Math.floor((r + v) / 2);
   const getStaminaMax = (r: number) => 10 + r * 5;
   const getAttrXpCost = (key: string): number => (key === "resiliencia" ? 5 : key === "iniciativa" ? 15 : 10);
+
+  // Helper Unificado para Disparar Dados e Alternar para o Chat no Mobile
+  const triggerRoll = (sides: number, bonus?: number, label?: string) => {
+    if (onRollDice) {
+      onRollDice(sides, bonus, label);
+    }
+    if (onOpenChat) {
+      onOpenChat();
+    }
+  };
 
   useEffect(() => {
     fetchCharacters();
@@ -113,6 +126,37 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     updateCharacterData(updated, { [field]: value });
   };
 
+  const updateMoedas = (delta: number) => {
+    if (!activeChar) return;
+    const currentCoins = activeChar.moedas ?? 0;
+    const newMoedas = Math.max(0, currentCoins + delta);
+    const updated = { ...activeChar, moedas: newMoedas };
+    updateCharacterData(updated, { moedas: newMoedas });
+  };
+
+  const handleLevelUp = async () => {
+    if (!activeChar) return;
+    const LEVEL_XP_COST = 50;
+
+    if (activeChar.xp < LEVEL_XP_COST) {
+      alert(`XP insuficiente! Subir de nível requer ${LEVEL_XP_COST} XP.`);
+      return;
+    }
+
+    const newXp = activeChar.xp - LEVEL_XP_COST;
+    const newLevel = (activeChar.level || 1) + 1;
+
+    const updated: Character = {
+      ...activeChar,
+      xp: newXp,
+      level: newLevel,
+    };
+
+    await updateCharacterData(updated, { xp: newXp, level: newLevel });
+
+    triggerRoll(0, 0, `🎉 ${activeChar.name} subiu para o NÍVEL ${newLevel}! (-50 XP)`);
+  };
+
   const handleRollIniciativa = async () => {
     if (!activeChar) return;
 
@@ -138,9 +182,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
       .update({ attributes: updatedAttrs })
       .eq("id", activeChar.id);
 
-    if (onRollDice) {
-      onRollDice(0, 0, `🎲 Iniciativa de ${activeChar.name}: [ ${rollResult} ] (d${sides})`);
-    }
+    triggerRoll(0, 0, `🎲 Iniciativa de ${activeChar.name}: [ ${rollResult} ] (d${sides})`);
   };
 
   const handleIncreaseAttribute = (attrKey: keyof Character["attributes"]) => {
@@ -271,9 +313,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     const updated = { ...activeChar, current_pericia: newPericia, current_stamina: newStamina };
     await updateCharacterData(updated, { current_pericia: newPericia, current_stamina: newStamina });
 
-    if (onRollDice) {
-      onRollDice(0, 0, `💤 Descansou! Recuperou +3 ⭐ de Perícia e +${staminaRecovered}⚡ de Stamina [d10] (${newStamina}/${activeChar.max_stamina})`);
-    }
+    triggerRoll(0, 0, `💤 Descansou! Recuperou +3 ⭐ de Perícia e +${staminaRecovered}⚡ de Stamina [d10] (${newStamina}/${activeChar.max_stamina})`);
   };
 
   const handleSocoBasico = async () => {
@@ -289,7 +329,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
       }
     }
 
-    if (onRollDice) onRollDice(0, 0, `👊 Soco Básico (0 ⭐): 🎲 [ ${damage} ]${targetText}`);
+    triggerRoll(0, 0, `👊 Soco Básico (0 ⭐): 🎲 [ ${damage} ]${targetText}`);
   };
 
   const handleUseAbility = async (ability: Ability) => {
@@ -310,9 +350,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
     await updateCharacterData(updatedCaster, { current_pericia: newPericia, current_stamina: newStamina });
 
     if (isExhausted) {
-      if (onRollDice) {
-        onRollDice(0, 0, `💀 AÇÃO FALHOU! ${activeChar.name} tentou usar "${ability.name}", mas ficou EXAUSTO! Stamina zerou! ⚡ [0/${activeChar.max_stamina}]`);
-      }
+      triggerRoll(0, 0, `💀 AÇÃO FALHOU! ${activeChar.name} tentou usar "${ability.name}", mas ficou EXAUSTO! Stamina zerou! ⚡ [0/${activeChar.max_stamina}]`);
       return;
     }
 
@@ -328,9 +366,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
       }
     }
 
-    if (onRollDice) {
-      onRollDice(0, 0, `✨ ${ability.name} [${ability.type}]: 🎲 d${ability.dieSides} [ ${damage} ]${targetText} | Custo: -${ability.cost}⭐, -${staminaCost}⚡ Stamina`);
-    }
+    triggerRoll(0, 0, `✨ ${ability.name} [${ability.type}]: 🎲 d${ability.dieSides} [ ${damage} ]${targetText} | Custo: -${ability.cost}⭐, -${staminaCost}⚡ Stamina`);
   };
 
   const getTypeIcon = (type: string) => {
@@ -480,8 +516,8 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
         activeChar && (
           <div className="space-y-3">
             {/* HEADER */}
-            <div className="bg-[#0b0c16] p-2.5 border border-purple-800/40 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
+            <div className="bg-[#0b0c16] p-2.5 border border-purple-800/40 rounded-xl flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
                 {activeChar.avatar_url ? (
                   <img src={activeChar.avatar_url} alt={activeChar.name} className={`w-10 h-10 object-cover border-2 shrink-0 ${activeChar.is_npc ? "border-red-500" : "border-cyan-400"} ${activeChar.token_shape === "circle" ? "rounded-full" : "rounded-lg"}`} />
                 ) : (
@@ -491,10 +527,57 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                 )}
                 <div className="min-w-0">
                   <h3 className="font-extrabold text-white text-xs truncate">{activeChar.name}</h3>
-                  <span className="text-[10px] text-cyan-400 block">
+                  <span className="text-[10px] text-cyan-400 block truncate">
                     LV {activeChar.level || 1} • <strong className="text-amber-300 font-mono">{activeChar.xp} XP</strong>
                   </span>
                 </div>
+              </div>
+
+              {/* BOTÃO DE EVOLUÇÃO DE LEVEL (CUSTA 50 XP) */}
+              <button
+                onClick={handleLevelUp}
+                disabled={activeChar.xp < 50}
+                className={`px-2 py-1 text-[9px] font-bold rounded-lg border transition cursor-pointer shrink-0 ${
+                  activeChar.xp >= 50
+                    ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-300 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse"
+                    : "bg-[#12131f] border-purple-900/40 text-gray-500 opacity-60 cursor-not-allowed"
+                }`}
+                title="Consome 50 XP para avançar 1 nível"
+              >
+                {activeChar.xp >= 50 ? "⚡ Subir LV! (50 XP)" : "Subir LV (50 XP)"}
+              </button>
+            </div>
+
+            {/* PAINEL DE MOEDAS */}
+            <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-amber-500/40 flex items-center justify-between gap-2">
+              <span className="text-xs font-black text-amber-400 font-mono flex items-center gap-1 shrink-0">
+                🪙 Moedas: {activeChar.moedas ?? 0}
+              </span>
+              <div className="flex gap-1 shrink-0">
+                <button
+                  onClick={() => updateMoedas(-10)}
+                  className="px-2 py-0.5 bg-amber-950/80 active:bg-amber-800 text-amber-300 border border-amber-800/40 rounded font-bold cursor-pointer text-[10px]"
+                >
+                  -10
+                </button>
+                <button
+                  onClick={() => updateMoedas(-1)}
+                  className="px-2 py-0.5 bg-amber-950/80 active:bg-amber-800 text-amber-300 border border-amber-800/40 rounded font-bold cursor-pointer text-[10px]"
+                >
+                  -1
+                </button>
+                <button
+                  onClick={() => updateMoedas(1)}
+                  className="px-2 py-0.5 bg-amber-950/80 active:bg-amber-800 text-amber-300 border border-amber-800/40 rounded font-bold cursor-pointer text-[10px]"
+                >
+                  +1
+                </button>
+                <button
+                  onClick={() => updateMoedas(10)}
+                  className="px-2 py-0.5 bg-amber-950/80 active:bg-amber-800 text-amber-300 border border-amber-800/40 rounded font-bold cursor-pointer text-[10px]"
+                >
+                  +10
+                </button>
               </div>
             </div>
 
@@ -589,7 +672,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
             <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
               <div className="flex justify-between items-center">
                 <span className="block text-[10px] font-bold uppercase text-purple-300">Atributos</span>
-                <span className="text-[9px] text-gray-400 font-semibold">XP: <strong className="text-cyan-300 font-mono">{activeChar.xp}</strong></span>
+                <span className="text-[9px] text-gray-400 font-semibold">XP Disponível: <strong className="text-cyan-300 font-mono">{activeChar.xp}</strong></span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -623,7 +706,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice }: FichaPro
                             🎲 d{6 + val}
                           </button>
                         ) : (
-                          <button onClick={() => onRollDice && onRollDice(20, val, attr.label)} className="px-2 py-1 bg-purple-950 border border-purple-800 text-[9px] font-bold text-purple-200 rounded cursor-pointer shrink-0">
+                          <button onClick={() => triggerRoll(20, val, attr.label)} className="px-2 py-1 bg-purple-950 border border-purple-800 text-[9px] font-bold text-purple-200 rounded cursor-pointer shrink-0">
                             🎲 d20
                           </button>
                         )}

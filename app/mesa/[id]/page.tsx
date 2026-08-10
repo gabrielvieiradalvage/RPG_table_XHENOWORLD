@@ -9,6 +9,7 @@ import Mapas, { RoomMap } from "@/components/mesa/Mapas";
 import Audio, { RoomAudio } from "@/components/mesa/Audio";
 import Ficha from "@/components/mesa/Ficha";
 import Tokens from "@/components/mesa/Tokens";
+import Loja from "@/components/mesa/Loja";
 import FerramentasDoMestre from "@/components/mesa/FerramentasDoMestre";
 import IaPersonagens from "@/components/mesa/IaPersonagens";
 import ConvidarAmigos from "@/components/mesa/ConvidarAmigos";
@@ -59,7 +60,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const [mobileView, setMobileView] = useState<"chat" | "mapa" | "painel">("mapa");
 
   // Abas do Painel
-  const [activeTab, setActiveTab] = useState<"ficha" | "tokens" | "mapas" | "audio" | "ia" | "mestre">("ficha");
+  const [activeTab, setActiveTab] = useState<"ficha" | "tokens" | "loja" | "mapas" | "audio" | "ia" | "mestre">("ficha");
 
   // Redimensionamento do Painel Direito (Desktop)
   const [sidebarWidth, setSidebarWidth] = useState<number>(340);
@@ -726,7 +727,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </main>
 
-        {/* 3. PAINEL DIREITO: FICHA, TOKENS, MAPAS, ÁUDIO, IA E 👑 MESTRE */}
+        {/* 3. PAINEL DIREITO: FICHA, TOKENS, LOJA, MAPAS, ÁUDIO, IA E 👑 MESTRE */}
         <aside
           style={{ width: typeof window !== 'undefined' && window.innerWidth >= 768 ? `${sidebarWidth}px` : '100%' }}
           className={`h-full bg-[#12131f] border-l border-purple-900/40 flex-col shrink-0 transition-all ${mobileView === "painel" ? "flex w-full" : "hidden md:flex"}`}
@@ -757,7 +758,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
 
           {/* BARRA DE ABAS */}
           <div className="flex border-b border-purple-900/40 bg-[#0b0c16] w-full overflow-x-auto scrollbar-none shrink-0">
-            {(["ficha", "tokens", "mapas", "audio", "ia", "mestre"] as const).map((tab) => {
+            {(["ficha", "tokens", "loja", "mapas", "audio", "ia", "mestre"] as const).map((tab) => {
               if ((tab === "audio" || tab === "mestre" || tab === "ia") && !isMestre) return null;
 
               return (
@@ -767,17 +768,33 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
                   className={`flex-1 px-1 py-2.5 text-[10px] sm:text-[11px] font-bold capitalize transition border-b-2 text-center truncate cursor-pointer ${
                     activeTab === tab ? "border-cyan-400 text-cyan-400 bg-purple-950/30" : "border-transparent text-gray-400 hover:text-white"
                   }`}
-                  title={tab === "mestre" ? "Mestre" : tab === "ia" ? "IA" : tab}
+                  title={tab === "mestre" ? "Mestre" : tab === "ia" ? "IA" : tab === "loja" ? "Loja" : tab}
                 >
-                  {tab === "mestre" ? "👑 Mestre" : tab === "ia" ? "🧠 IA" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {tab === "mestre" ? "👑 Mestre" : tab === "ia" ? "🧠 IA" : tab === "loja" ? "🏪 Loja" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               );
             })}
           </div>
 
           <div className="flex-1 p-3 sm:p-4 overflow-y-auto">
-            {activeTab === "ficha" && <Ficha roomId={roomId} userId={currentUser?.id} isMestre={isMestre} onRollDice={handleRollDice} />}
+            {activeTab === "ficha" && (
+              <Ficha
+                roomId={roomId}
+                userId={currentUser?.id}
+                isMestre={isMestre}
+                onRollDice={handleRollDice}
+                onOpenChat={() => setMobileView("chat")}
+              />
+            )}
             {activeTab === "tokens" && <Tokens roomId={roomId} />}
+            {activeTab === "loja" && (
+              <Loja
+                roomId={roomId}
+                isMestre={isMestre}
+                currentUserId={currentUser?.id}
+                onSendMessage={handleSendMessage}
+              />
+            )}
             {activeTab === "mapas" && <Mapas isMestre={isMestre} maps={maps} activeMapUrl={activeMapUrl} isUploadingMap={isUploadingMap} onMapUpload={handleMapUpload} onSelectMap={(map) => setActiveMapUrl(map.image_url)} onDeleteMap={handleDeleteMap} mapScale={mapScale} onMapScaleChange={setMapScale} mapFitMode={mapFitMode} onFitModeChange={(mode) => setMapFitMode(mode)} />}
             {activeTab === "audio" && (
               <Audio
