@@ -28,13 +28,13 @@ export default function LoginPage() {
     setSuccessMsg(null);
   };
 
-  // Login com Google OAuth
+  // Login com Google OAuth + Callback SSR
   const handleGoogleLogin = async () => {
     setLoading(true);
     setErrorMsg(null);
 
     try {
-      const redirectUrl = `${window.location.origin}/dashboard`;
+      const redirectUrl = `${window.location.origin}/auth/callback?next=/dashboard`;
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
