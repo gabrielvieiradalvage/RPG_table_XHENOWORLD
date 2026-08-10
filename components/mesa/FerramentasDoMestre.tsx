@@ -13,6 +13,7 @@ interface CharacterItem {
   max_stamina: number;
   current_pericia: number;
   xp: number;
+  moedas?: number;
 }
 
 interface CombatZone {
@@ -30,6 +31,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
   const [characters, setCharacters] = useState<CharacterItem[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<string>("all_players");
   const [xpAmount, setXpAmount] = useState<number>(50);
+  const [moedasAmount, setMoedasAmount] = useState<number>(10);
 
   const [recoveryType, setRecoveryType] = useState<"dice" | "fixed">("dice");
   const [recoveryDice, setRecoveryDice] = useState<number>(20);
@@ -52,7 +54,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
   const fetchRoomAndCharacters = async () => {
     const { data: charData } = await supabase
       .from("characters")
-      .select("id, name, is_npc, current_hp, max_hp, current_stamina, max_stamina, current_pericia, xp")
+      .select("id, name, is_npc, current_hp, max_hp, current_stamina, max_stamina, current_pericia, xp, moedas")
       .eq("room_id", roomId);
 
     if (charData) setCharacters(charData as CharacterItem[]);
@@ -126,19 +128,43 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
 
   const handleGiveXp = async () => {
     const targets = getTargetCharacters();
+    if (targets.length === 0) return alert("Nenhum alvo encontrado.");
     for (const char of targets) {
       await supabase.from("characters").update({ xp: (char.xp || 0) + xpAmount }).eq("id", char.id);
     }
-    alert(`+${xpAmount} XP concedido!`);
+    alert(`+${xpAmount} XP concedido para ${targets.length} alvo(s)!`);
     fetchRoomAndCharacters();
   };
 
   const handleDeductXp = async () => {
     const targets = getTargetCharacters();
+    if (targets.length === 0) return alert("Nenhum alvo encontrado.");
     for (const char of targets) {
       await supabase.from("characters").update({ xp: Math.max(0, (char.xp || 0) - xpAmount) }).eq("id", char.id);
     }
-    alert(`-${xpAmount} XP removido!`);
+    alert(`-${xpAmount} XP removido de ${targets.length} alvo(s)!`);
+    fetchRoomAndCharacters();
+  };
+
+  const handleGiveMoedas = async () => {
+    const targets = getTargetCharacters();
+    if (targets.length === 0) return alert("Nenhum alvo encontrado.");
+    for (const char of targets) {
+      const currentCoins = char.moedas ?? 0;
+      await supabase.from("characters").update({ moedas: currentCoins + moedasAmount }).eq("id", char.id);
+    }
+    alert(`+🪙 ${moedasAmount} moedas concedidas para ${targets.length} alvo(s)!`);
+    fetchRoomAndCharacters();
+  };
+
+  const handleDeductMoedas = async () => {
+    const targets = getTargetCharacters();
+    if (targets.length === 0) return alert("Nenhum alvo encontrado.");
+    for (const char of targets) {
+      const currentCoins = char.moedas ?? 0;
+      await supabase.from("characters").update({ moedas: Math.max(0, currentCoins - moedasAmount) }).eq("id", char.id);
+    }
+    alert(`-🪙 ${moedasAmount} moedas removidas de ${targets.length} alvo(s)!`);
     fetchRoomAndCharacters();
   };
 
@@ -189,12 +215,12 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
             </optgroup>
             {players.length > 0 && (
               <optgroup label="🛡️ Jogadores Individuais">
-                {players.map((p) => (<option key={p.id} value={p.id}>{p.name} (HP: {p.current_hp}/{p.max_hp} | ⚡ {p.current_stamina}/{p.max_stamina})</option>))}
+                {players.map((p) => (<option key={p.id} value={p.id}>{p.name} (HP: {p.current_hp}/{p.max_hp} | ⚡ {p.current_stamina}/{p.max_stamina} | 🪙 {p.moedas ?? 0})</option>))}
               </optgroup>
             )}
             {npcs.length > 0 && (
               <optgroup label="👹 NPCs / Monstros Individuais">
-                {npcs.map((n) => (<option key={n.id} value={n.id}>{n.name} (HP: {n.current_hp}/{n.max_hp} | ⚡ {n.current_stamina}/{n.max_stamina})</option>))}
+                {npcs.map((n) => (<option key={n.id} value={n.id}>{n.name} (HP: {n.current_hp}/{n.max_hp} | ⚡ {n.current_stamina}/{n.max_stamina} | 🪙 {n.moedas ?? 0})</option>))}
               </optgroup>
             )}
           </select>
@@ -204,8 +230,8 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
         <div className="pt-2 border-t border-purple-900/40 space-y-2">
           <span className="block text-[10px] font-bold text-amber-300 uppercase">💤 Configuração de Descanso / Cura</span>
           <div className="flex gap-2">
-            <button onClick={() => setRecoveryType("dice")} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition ${recoveryType === "dice" ? "bg-amber-950 border-amber-500 text-amber-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🎲 Rolar Dado</button>
-            <button onClick={() => setRecoveryType("fixed")} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition ${recoveryType === "fixed" ? "bg-cyan-950 border-cyan-500 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🔢 Valor Fixo</button>
+            <button onClick={() => setRecoveryType("dice")} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition cursor-pointer ${recoveryType === "dice" ? "bg-amber-950 border-amber-500 text-amber-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🎲 Rolar Dado</button>
+            <button onClick={() => setRecoveryType("fixed")} className={`flex-1 py-1.5 text-[10px] font-bold rounded-lg border transition cursor-pointer ${recoveryType === "fixed" ? "bg-cyan-950 border-cyan-400 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🔢 Valor Fixo</button>
           </div>
 
           {recoveryType === "dice" ? (
@@ -213,7 +239,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
               <label className="block text-[9px] text-gray-400 mb-1">Selecione o Dado de Recuperação:</label>
               <div className="grid grid-cols-5 gap-1">
                 {[10, 20, 30, 50, 100].map((d) => (
-                  <button key={d} onClick={() => setRecoveryDice(d)} className={`py-1.5 text-[10px] font-bold rounded border ${recoveryDice === d ? "bg-purple-600 border-cyan-400 text-white" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>d{d}</button>
+                  <button key={d} onClick={() => setRecoveryDice(d)} className={`py-1.5 text-[10px] font-bold rounded border cursor-pointer ${recoveryDice === d ? "bg-purple-600 border-cyan-400 text-white" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>d{d}</button>
                 ))}
               </div>
             </div>
@@ -234,19 +260,29 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
           </div>
         </div>
 
+        {/* CONTROLE DE MOEDAS */}
+        <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
+          <label className="block text-[9px] text-gray-400">Distribuição de Moedas 🪙:</label>
+          <div className="flex gap-1.5">
+            <input type="number" value={moedasAmount} onChange={(e) => setMoedasAmount(Number(e.target.value))} className="w-20 bg-[#12131f] border border-purple-800/40 rounded-lg p-1.5 text-center font-mono font-bold text-amber-300 text-xs shrink-0" />
+            <button onClick={handleGiveMoedas} className="flex-1 py-1.5 bg-gradient-to-r from-amber-600 to-yellow-500 text-black font-extrabold rounded-lg text-[10px] cursor-pointer">+ Moedas</button>
+            <button onClick={handleDeductMoedas} className="flex-1 py-1.5 bg-red-950 text-red-300 font-bold rounded-lg text-[10px] cursor-pointer">- Moedas</button>
+          </div>
+        </div>
+
         {/* CONTROLE DE XP */}
         <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
           <label className="block text-[9px] text-gray-400">Quantidade de XP:</label>
           <div className="flex gap-1.5">
             <input type="number" value={xpAmount} onChange={(e) => setXpAmount(Number(e.target.value))} className="w-20 bg-[#12131f] border border-purple-800/40 rounded-lg p-1.5 text-center font-mono font-bold text-cyan-300 text-xs shrink-0" />
-            <button onClick={handleGiveXp} className="flex-1 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold rounded-lg text-[10px]">+ XP</button>
-            <button onClick={handleDeductXp} className="flex-1 py-1.5 bg-red-950 text-red-300 font-bold rounded-lg text-[10px]">- XP</button>
+            <button onClick={handleGiveXp} className="flex-1 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold rounded-lg text-[10px] cursor-pointer">+ XP</button>
+            <button onClick={handleDeductXp} className="flex-1 py-1.5 bg-red-950 text-red-300 font-bold rounded-lg text-[10px] cursor-pointer">- XP</button>
           </div>
         </div>
 
         {/* REMOVER TOKENS */}
         <div className="pt-2 border-t border-purple-900/40">
-          <button onClick={handleClearMapTokens} className="w-full py-2 bg-rose-950 text-rose-200 font-bold rounded-lg text-xs">🧹 Remover Todos os Tokens do Mapa</button>
+          <button onClick={handleClearMapTokens} className="w-full py-2 bg-rose-950 text-rose-200 font-bold rounded-lg text-xs cursor-pointer">🧹 Remover Todos os Tokens do Mapa</button>
         </div>
       </div>
 
@@ -255,7 +291,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
         <span className="block text-[10px] font-bold text-purple-300 uppercase">📐 Estilo de Grid Visual</span>
         <div className="grid grid-cols-2 gap-1.5">
           {[ { id: "quadrado", label: "🔲 Quadrado" }, { id: "hexagono", label: "🛑 Hexágono" }, { id: "circulo", label: "⭕ Círculo" }, { id: "nenhum", label: "🚫 Sem Grid" } ].map((grid) => (
-            <button key={grid.id} onClick={() => handleGridChange(grid.id)} className={`py-2 text-[11px] font-bold rounded-lg border transition ${gridType === grid.id ? "bg-purple-900/60 border-cyan-400 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>{grid.label}</button>
+            <button key={grid.id} onClick={() => handleGridChange(grid.id)} className={`py-2 text-[11px] font-bold rounded-lg border transition cursor-pointer ${gridType === grid.id ? "bg-purple-900/60 border-cyan-400 text-cyan-300" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>{grid.label}</button>
           ))}
         </div>
       </div>
@@ -264,8 +300,8 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
       <div className="bg-[#0b0c16] p-3 rounded-xl border border-purple-800/40 space-y-3">
         <span className="block text-[10px] font-bold text-amber-400 uppercase">🚨 Modo de Jogo Ativo</span>
         <div className="grid grid-cols-2 gap-2">
-          <button onClick={() => handleGameModeChange("exploracao")} className={`py-2.5 text-xs font-bold rounded-xl border transition ${gameMode === "exploracao" ? "bg-green-950/80 border-green-500 text-green-300 shadow-lg" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🗺️ Exploração</button>
-          <button onClick={() => handleGameModeChange("combate")} className={`py-2.5 text-xs font-bold rounded-xl border transition ${gameMode === "combate" ? "bg-red-950/80 border-red-500 text-red-300 shadow-lg animate-pulse" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>⚔️ Combate</button>
+          <button onClick={() => handleGameModeChange("exploracao")} className={`py-2.5 text-xs font-bold rounded-xl border transition cursor-pointer ${gameMode === "exploracao" ? "bg-green-950/80 border-green-500 text-green-300 shadow-lg" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>🗺️ Exploração</button>
+          <button onClick={() => handleGameModeChange("combate")} className={`py-2.5 text-xs font-bold rounded-xl border transition cursor-pointer ${gameMode === "combate" ? "bg-red-950/80 border-red-500 text-red-300 shadow-lg animate-pulse" : "bg-[#12131f] border-purple-900/40 text-gray-400"}`}>⚔️ Combate</button>
         </div>
 
         {gameMode === "combate" && (
