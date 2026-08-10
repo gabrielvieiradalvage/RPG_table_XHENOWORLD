@@ -3,10 +3,11 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  // O next parameter é usado para o redirecionamento pós-login
-  const next = searchParams.get("next") ?? "/dashboard";
+  
+  // URL blindada de produção
+  const baseUrl = "https://rpg-table-xhenosworld.vercel.app";
 
   if (code) {
     const cookieStore = await cookies();
@@ -24,17 +25,17 @@ export async function GET(request: Request) {
                 cookieStore.set(name, value, options)
               );
             } catch (error) {
-              // Executado a partir de Server Component, pode ser ignorado pois o middleware resolve
+              // Contexto de leitura apenas
             }
           },
         },
       }
     );
 
-    // Troca o código do Google por uma sessão real em Cookies
+    // Troca o código OAuth por uma sessão de cookie
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  // Redireciona o jogador para o Dashboard
-  return NextResponse.redirect(`${origin}${next}`);
+  // Redireciona diretamente para o Dashboard após validar a sessão
+  return NextResponse.redirect(`${baseUrl}/dashboard`);
 }

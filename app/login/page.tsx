@@ -9,15 +9,10 @@ type AuthMode = "login" | "register" | "recovery";
 export default function LoginPage() {
   const router = useRouter();
 
-  // Modo atual do formulário
   const [mode, setMode] = useState<AuthMode>("login");
-
-  // Estados dos Campos
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // Estados de Feedback
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -28,18 +23,17 @@ export default function LoginPage() {
     setSuccessMsg(null);
   };
 
-  // Login com Google OAuth + Callback SSR
+  // Login OAuth Blindado
   const handleGoogleLogin = async () => {
     setLoading(true);
     setErrorMsg(null);
 
     try {
-      const redirectUrl = `${window.location.origin}/auth/callback?next=/dashboard`;
-
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: redirectUrl,
+          // URL exata permitida no Supabase, sem query params
+          redirectTo: "https://rpg-table-xhenosworld.vercel.app/auth/callback",
           queryParams: {
             access_type: "offline",
             prompt: "consent",
@@ -63,7 +57,7 @@ export default function LoginPage() {
     try {
       if (mode === "recovery") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/login`,
+          redirectTo: `https://rpg-table-xhenosworld.vercel.app/login`,
         });
 
         if (error) throw error;
@@ -130,7 +124,6 @@ export default function LoginPage() {
           isRegister ? "border-orange-500/40 shadow-orange-950/30" : "border-purple-900/40 glow-purple"
         }`}
       >
-        {/* LADO ESQUERDO: Banner */}
         <div className="relative hidden md:flex flex-col justify-end p-8 bg-purple-950/20 overflow-hidden border-r border-purple-900/30 group">
           <img
             src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop"
@@ -162,7 +155,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* LADO DIREITO: Formulário */}
         <div className="flex flex-col justify-center p-8 sm:p-12 bg-[#12131f]/90">
           <div className="text-left mb-6">
             <h1
@@ -181,7 +173,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* GOOGLE AUTH */}
           {mode !== "recovery" && (
             <>
               <button
@@ -222,7 +213,6 @@ export default function LoginPage() {
             </>
           )}
 
-          {/* Feedback Alerts */}
           {errorMsg && (
             <div className="mb-4 p-3 rounded-xl bg-red-950/60 border border-red-800/80 text-red-300 text-xs">
               ⚠️ {errorMsg}
