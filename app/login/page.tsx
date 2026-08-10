@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -17,13 +17,33 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Listener para capturar o login do Google instantaneamente no client
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        router.replace("/dashboard");
+      }
+    };
+    checkSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        router.replace("/dashboard");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
   const switchMode = (newMode: AuthMode) => {
     setMode(newMode);
     setErrorMsg(null);
     setSuccessMsg(null);
   };
 
-  // Login OAuth Blindado
   const handleGoogleLogin = async () => {
     setLoading(true);
     setErrorMsg(null);
@@ -32,8 +52,7 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          // URL exata permitida no Supabase, sem query params
-          redirectTo: "https://rpg-table-xhenosworld.vercel.app/auth/callback",
+          redirectTo: "https://rpg-table-xhenoworld.vercel.app/auth/callback",
           queryParams: {
             access_type: "offline",
             prompt: "consent",
@@ -57,7 +76,7 @@ export default function LoginPage() {
     try {
       if (mode === "recovery") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `https://rpg-table-xhenosworld.vercel.app/login`,
+          redirectTo: `https://rpg-table-xhenoworld.vercel.app/login`,
         });
 
         if (error) throw error;
