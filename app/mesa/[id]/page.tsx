@@ -13,6 +13,7 @@ import Loja from "@/components/mesa/Loja";
 import FerramentasDoMestre from "@/components/mesa/FerramentasDoMestre";
 import IaPersonagens from "@/components/mesa/IaPersonagens";
 import ConvidarAmigos from "@/components/mesa/ConvidarAmigos";
+import BolsaItens from "@/components/mesa/BolsaItens";
 
 interface MapToken {
   id: string;
@@ -568,6 +569,9 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       <audio ref={audioRef} loop />
 
       <ConvidarAmigos roomId={roomId} isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
+      
+      {/* COMPONENTE FLUTUANTE DA BOLSA DE ITENS */}
+      {currentUser?.id && <BolsaItens roomId={roomId} currentUserId={currentUser.id} />}
 
       {/* HEADER DA MESA */}
       <header className="h-12 sm:h-14 bg-[#12131f]/90 border-b border-purple-900/40 px-3 sm:px-4 flex items-center justify-between z-20 shrink-0">
