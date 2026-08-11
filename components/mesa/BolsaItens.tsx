@@ -48,9 +48,12 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
-  // Estados de Movimentação Touch / Mouse do Ícone Flutuante
+  // Posição e controle de Drag sem vazamento de escopo via useRef
   const [position, setPosition] = useState({ x: 16, y: 100 });
-  const [isDragging, setIsDragging] = useState(false);
+  const posRef = useRef(position);
+  posRef.current = position;
+
+  const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const initialPosRef = useRef({ x: 0, y: 0 });
   const hasDraggedRef = useRef(false);
@@ -100,20 +103,21 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
       .eq("id", character.id);
   };
 
-  // LÓGICA DE ARRASTAR BOTÃO FLUTUANTE
+  // --- ARRASTO ROBUSTO E SEM VAZAMENTO DE LISTENERS (PC & MOBILE) ---
   const handleStartDrag = (clientX: number, clientY: number) => {
-    setIsDragging(true);
+    isDraggingRef.current = true;
     hasDraggedRef.current = false;
     dragStartRef.current = { x: clientX, y: clientY };
-    initialPosRef.current = { ...position };
+    initialPosRef.current = { ...posRef.current };
   };
 
   const handleMoveDrag = (clientX: number, clientY: number) => {
-    if (!isDragging) return;
+    if (!isDraggingRef.current) return;
+
     const deltaX = clientX - dragStartRef.current.x;
     const deltaY = clientY - dragStartRef.current.y;
 
-    if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
+    if (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10) {
       hasDraggedRef.current = true;
     }
 
@@ -127,7 +131,7 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
   };
 
   const handleEndDrag = () => {
-    setIsDragging(false);
+    isDraggingRef.current = false;
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -135,35 +139,51 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    handleStartDrag(touch.clientX, touch.clientY);
+    if (e.touches.length > 0) {
+      const touch = e.touches[0];
+      handleStartDrag(touch.clientX, touch.clientY);
+    }
   };
 
+  // Ouvintes de evento estáticos anexados uma única vez ao window
   useEffect(() => {
-    const onWindowTouchMove = (e: TouchEvent) => {
-      if (!isDragging) return;
-      const touch = e.touches[0];
-      handleMoveDrag(touch.clientX, touch.clientY);
+    const handlePointerMove = (e: MouseEvent) => {
+      if (isDraggingRef.current) {
+        handleMoveDrag(e.clientX, e.clientY);
+      }
     };
 
-    const onWindowTouchEnd = () => {
-      if (isDragging) handleEndDrag();
+    const handlePointerUp = () => {
+      if (isDraggingRef.current) {
+        handleEndDrag();
+      }
     };
 
-    if (isDragging) {
-      window.addEventListener("mousemove", (e) => handleMoveDrag(e.clientX, e.clientY));
-      window.addEventListener("mouseup", handleEndDrag);
-      window.addEventListener("touchmove", onWindowTouchMove, { passive: true });
-      window.addEventListener("touchend", onWindowTouchEnd);
-    }
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDraggingRef.current && e.touches.length > 0) {
+        const touch = e.touches[0];
+        handleMoveDrag(touch.clientX, touch.clientY);
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (isDraggingRef.current) {
+        handleEndDrag();
+      }
+    };
+
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd);
 
     return () => {
-      window.removeEventListener("mousemove", (e) => handleMoveDrag(e.clientX, e.clientY));
-      window.removeEventListener("mouseup", handleEndDrag);
-      window.removeEventListener("touchmove", onWindowTouchMove);
-      window.removeEventListener("touchend", onWindowTouchEnd);
+      window.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseup", handlePointerUp);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [isDragging]);
+  }, []);
 
   const handleIconClick = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
@@ -172,7 +192,7 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
     }
   };
 
-  // EQUIPAR ITEM NAS ARMADURAS/ARMAS
+  // --- EQUIPAR ITEM NAS ARMADURAS/ARMAS ---
   const handleEquipToSlot = async (slot: EquipSlotKey, itemToEquip: InventoryItem) => {
     let newEquip = { ...equipment };
     let newInv = inventory.filter((i) => i.id !== itemToEquip.id);
@@ -213,7 +233,7 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
     await saveEquipmentAndInventory(newEquip, newInv);
   };
 
-  // USAR ITEM CONSUMÍVEL (CURA OU SUPORTE)
+  // --- USAR ITEM CONSUMÍVEL (CURA OU SUPORTE) ---
   const handleUseConsumableItem = async (itemToUse: InventoryItem) => {
     if (!character) return;
 
@@ -242,7 +262,6 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
         onSendMessage(`🧪 ${character.name} usou o item consumível "${itemToUse.name}" e recuperou +${healAmount} HP! (❤️ HP Atual: ${newHp}/${maxHp})`);
       }
     } else {
-      // SUPORTE
       setCharacter((prev: any) => ({ ...prev, inventory: newInv }));
       setInventory(newInv);
 
