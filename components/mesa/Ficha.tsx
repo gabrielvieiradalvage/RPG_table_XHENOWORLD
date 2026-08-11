@@ -135,7 +135,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     updateCharacterData(updated, { moedas: newMoedas });
   };
 
-  // SISTEMA EXCLUSIVO DE EVOLUÇÃO (50 XP = ROLA 1d6 DE PONTOS DE ATRIBUTO)
+  // EVOLUÇÃO DE LEVEL COM ROLAGEM D6
   const handleLevelUp = async () => {
     if (!activeChar) return;
     const LEVEL_XP_COST = 50;
@@ -148,7 +148,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     const pointsGained = Math.floor(Math.random() * 6) + 1;
     const newXp = activeChar.xp - LEVEL_XP_COST;
     const newLevel = (activeChar.level || 1) + 1;
-    const currentPoints = activeChar.attributes?.attribute_points || 0;
+    const currentPoints = Number(activeChar.attributes?.attribute_points) || 0;
     const newPoints = currentPoints + pointsGained;
 
     const updatedAttrs = {
@@ -171,7 +171,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
   const handleRollIniciativa = async () => {
     if (!activeChar) return;
 
-    const sides = 6 + (activeChar.attributes?.iniciativa || 0);
+    const sides = 6 + (Number(activeChar.attributes?.iniciativa) || 0);
     const rollResult = Math.floor(Math.random() * sides) + 1;
 
     const updatedAttrs = {
@@ -198,7 +198,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   const handleIncreaseAttribute = (attrKey: keyof Character["attributes"]) => {
     if (!activeChar) return;
-    const freePoints = activeChar.attributes?.attribute_points || 0;
+    const freePoints = Number(activeChar.attributes?.attribute_points) || 0;
 
     if (freePoints <= 0) {
       alert("Sem pontos de atributo disponíveis! Suba de nível (50 XP) para rolar o d6 de pontos livres.");
@@ -208,7 +208,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     const newFreePoints = freePoints - 1;
     const newAttrs = {
       ...activeChar.attributes,
-      [attrKey]: (activeChar.attributes[attrKey] || 0) + 1,
+      [attrKey]: (Number(activeChar.attributes[attrKey]) || 0) + 1,
       attribute_points: newFreePoints,
     };
 
@@ -227,10 +227,10 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   const handleDecreaseAttribute = (attrKey: keyof Character["attributes"]) => {
     if (!activeChar) return;
-    const currentVal = activeChar.attributes[attrKey] || 0;
+    const currentVal = Number(activeChar.attributes[attrKey]) || 0;
     if (currentVal <= 0) return;
 
-    const freePoints = activeChar.attributes?.attribute_points || 0;
+    const freePoints = Number(activeChar.attributes?.attribute_points) || 0;
     const newFreePoints = freePoints + 1;
 
     const newAttrs = {
@@ -335,19 +335,21 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     triggerRoll(0, 0, `💤 Descansou! Recuperou +3 ⭐ de Perícia e +${staminaRecovered}⚡ de Stamina [d10] (${newStamina}/${activeChar.max_stamina})`);
   };
 
-  // HELPER UNIFICADO DE APLICAÇÃO DE DANO (ABSORVE NO ESCUDO PRIMEIRO)
-  const applyDamageToTarget = async (targetId: string, damage: number) => {
-    const { data: targetData } = await supabase
+  // PROCESSAMENTO DE DANO SINCRONIZADO NO SUPABASE E ESTADO LOCAL
+  const applyDamageToTarget = async (targetId: string, damageInput: number) => {
+    const damage = Number(damageInput) || 0;
+    const { data: targetData, error } = await supabase
       .from("characters")
       .select("id, name, current_hp, attributes")
       .eq("id", targetId)
       .single();
 
-    if (!targetData) return "";
+    if (error || !targetData) return "";
 
-    const currentShield = targetData.attributes?.escudo || 0;
+    const currentShield = Number(targetData.attributes?.escudo) || 0;
+    const currentHp = Number(targetData.current_hp) || 0;
     let newShield = currentShield;
-    let newHp = targetData.current_hp;
+    let newHp = currentHp;
     let logText = "";
 
     if (currentShield > 0) {
@@ -357,11 +359,11 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
       } else {
         const overflowDamage = damage - currentShield;
         newShield = 0;
-        newHp = Math.max(0, targetData.current_hp - overflowDamage);
+        newHp = Math.max(0, currentHp - overflowDamage);
         logText = ` 🎯 em ${targetData.name} (💥 Escudo QUEBROU! Absorveu ${currentShield} e causou ${overflowDamage} no HP! ❤️ HP: ${newHp})`;
       }
     } else {
-      newHp = Math.max(0, targetData.current_hp - damage);
+      newHp = Math.max(0, currentHp - damage);
       logText = ` 🎯 em ${targetData.name} (💥 Causou ${damage} de dano! ❤️ HP: ${newHp})`;
     }
 
@@ -375,15 +377,17 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
       .update({ current_hp: newHp, attributes: updatedAttrs })
       .eq("id", targetId);
 
-    if (targetId === activeChar?.id) {
+    setCharacters((prev) =>
+      prev.map((c) =>
+        c.id === targetId
+          ? { ...c, current_hp: newHp, attributes: updatedAttrs }
+          : c
+      )
+    );
+
+    if (activeChar && activeChar.id === targetId) {
       setActiveChar((prev) =>
-        prev
-          ? {
-              ...prev,
-              current_hp: newHp,
-              attributes: { ...(prev.attributes || {}), escudo: newShield },
-            }
-          : null
+        prev ? { ...prev, current_hp: newHp, attributes: updatedAttrs } : null
       );
     }
 
@@ -430,28 +434,45 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     // 1. TIPO CURA
     if (ability.type === "Cura") {
       const targetCharId = selectedTargetId || activeChar.id;
-      const { data: targetData } = await supabase.from("characters").select("id, name, current_hp, max_hp").eq("id", targetCharId).single();
-      
-      if (targetData) {
-        const maxHp = targetData.max_hp || 20;
-        const newHp = Math.min(maxHp, targetData.current_hp + rollValue);
-        await supabase.from("characters").update({ current_hp: newHp }).eq("id", targetCharId);
+      const { data: targetData } = await supabase
+        .from("characters")
+        .select("id, name, current_hp, max_hp")
+        .eq("id", targetCharId)
+        .single();
 
-        if (targetCharId === activeChar.id) {
-          setActiveChar((prev) => prev ? { ...prev, current_hp: newHp } : null);
+      if (targetData) {
+        const maxHp = Number(targetData.max_hp) || 20;
+        const currentHp = Number(targetData.current_hp) || 0;
+        const newHp = Math.min(maxHp, currentHp + rollValue);
+
+        await supabase
+          .from("characters")
+          .update({ current_hp: newHp })
+          .eq("id", targetCharId);
+
+        setCharacters((prev) =>
+          prev.map((c) => (c.id === targetCharId ? { ...c, current_hp: newHp } : c))
+        );
+
+        if (activeChar && activeChar.id === targetCharId) {
+          setActiveChar((prev) => (prev ? { ...prev, current_hp: newHp } : null));
         }
 
         const targetName = targetCharId === activeChar.id ? "si mesmo" : targetData.name;
         actionLog = `🧪 [Cura] ${activeChar.name} usou "${ability.name}" em ${targetName} e curou +${rollValue} HP! (❤️ HP: ${newHp}/${maxHp})`;
       }
-    } 
+    }
     // 2. TIPO ESCUDO
     else if (ability.type === "Escudo") {
       const targetCharId = selectedTargetId || activeChar.id;
-      const { data: targetData } = await supabase.from("characters").select("id, name, attributes").eq("id", targetCharId).single();
+      const { data: targetData } = await supabase
+        .from("characters")
+        .select("id, name, attributes")
+        .eq("id", targetCharId)
+        .single();
 
       if (targetData) {
-        const currentShield = targetData.attributes?.escudo || 0;
+        const currentShield = Number(targetData.attributes?.escudo) || 0;
         const newShield = currentShield + rollValue;
         const updatedAttrs = {
           ...(targetData.attributes || {}),
@@ -463,34 +484,37 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
           .update({ attributes: updatedAttrs })
           .eq("id", targetCharId);
 
-        if (targetCharId === activeChar.id) {
+        setCharacters((prev) =>
+          prev.map((c) =>
+            c.id === targetCharId ? { ...c, attributes: updatedAttrs } : c
+          )
+        );
+
+        if (activeChar && activeChar.id === targetCharId) {
           setActiveChar((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  attributes: { ...(prev.attributes || {}), escudo: newShield },
-                }
-              : null
+            prev ? { ...prev, attributes: updatedAttrs } : null
           );
         }
 
         const targetName = targetCharId === activeChar.id ? "si mesmo" : targetData.name;
         actionLog = `🔰 [Escudo] ${activeChar.name} usou "${ability.name}" em ${targetName} concedendo +${rollValue} de Escudo! (🛡️ Escudo Total: ${newShield})`;
       }
-    } 
+    }
     // 3. TIPO SUPORTE (BUFF / DEBUFF)
     else if (ability.type === "Suporte") {
-      const targetName = selectedTargetId 
-        ? (targetList.find((t) => t.id === selectedTargetId)?.name || "Alvo")
+      const targetName = selectedTargetId
+        ? targetList.find((t) => t.id === selectedTargetId)?.name || "Alvo"
         : "si mesmo";
 
       actionLog = `🛡️ [Suporte] ${activeChar.name} ativou "${ability.name}" em ${targetName}! (Efeito Tático: 🎲 [ ${rollValue} ])`;
-    } 
+    }
     // 4. ATAQUES (FÍSICO, DISTÂNCIA, MAGIA)
     else {
       let targetText = "";
       if (selectedTargetId) {
         targetText = await applyDamageToTarget(selectedTargetId, rollValue);
+      } else {
+        targetText = " (Nenhum alvo selecionado)";
       }
       actionLog = `✨ [${ability.type}] ${activeChar.name} usou "${ability.name}": 🎲 d${ability.dieSides} [ ${rollValue} ]${targetText}`;
     }
@@ -533,8 +557,8 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
   const validAbilities = (activeChar?.abilities || []).filter(
     (a) => a && a.name && a.name.trim() !== ""
   );
-  const freeAttributePoints = activeChar?.attributes?.attribute_points || 0;
-  const currentShieldValue = activeChar?.attributes?.escudo || 0;
+  const freeAttributePoints = Number(activeChar?.attributes?.attribute_points) || 0;
+  const currentShieldValue = Number(activeChar?.attributes?.escudo) || 0;
 
   return (
     <div className="space-y-3 text-xs text-white w-full max-w-full">
@@ -835,7 +859,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                   { key: "forca", label: "Força" },
                   { key: "intelecto", label: "Intelecto" },
                 ].map((attr) => {
-                  const val = (activeChar.attributes as any)[attr.key] || 0;
+                  const val = Number((activeChar.attributes as any)[attr.key]) || 0;
 
                   return (
                     <div key={attr.key} className="bg-[#0b0c16] p-2 rounded-lg border border-purple-900/40 space-y-1">
