@@ -18,6 +18,7 @@ export interface InventoryItem {
   name: string;
   category: "equipavel" | "cura" | "suporte" | string;
   description: string;
+  effect_value?: number;
   image_url?: string | null;
   bought_at?: string;
   slotRecommended?: EquipSlotKey;
@@ -37,9 +38,10 @@ export interface EquipmentSlots {
 interface BolsaItensProps {
   roomId: string;
   currentUserId: string;
+  onSendMessage?: (text: string) => void;
 }
 
-export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
+export default function BolsaItens({ roomId, currentUserId, onSendMessage }: BolsaItensProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [character, setCharacter] = useState<any>(null);
   const [equipment, setEquipment] = useState<EquipmentSlots>({});
@@ -75,7 +77,6 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     }
   };
 
-  // Sincronizar Equipamento no Supabase
   const saveEquipmentAndInventory = async (
     newEquip: EquipmentSlots,
     newInv: InventoryItem[]
@@ -99,7 +100,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
       .eq("id", character.id);
   };
 
-  // --- LÓGICA ROBUSTA DE ARRASTAR BOTÃO FLUTUANTE (MOUSE + TOUCH) ---
+  // LÓGICA DE ARRASTAR BOTÃO FLUTUANTE
   const handleStartDrag = (clientX: number, clientY: number) => {
     setIsDragging(true);
     hasDraggedRef.current = false;
@@ -112,7 +113,6 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     const deltaX = clientX - dragStartRef.current.x;
     const deltaY = clientY - dragStartRef.current.y;
 
-    // Tolerância de 12px para diferenciar toques de arrastos em telas touch
     if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
       hasDraggedRef.current = true;
     }
@@ -130,26 +130,15 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     setIsDragging(false);
   };
 
-  // MOUSE EVENTS
   const handleMouseDown = (e: React.MouseEvent) => {
     handleStartDrag(e.clientX, e.clientY);
   };
 
-  const handleMouseMove = (e: MouseEvent) => {
-    handleMoveDrag(e.clientX, e.clientY);
-  };
-
-  const handleMouseUp = () => {
-    handleEndDrag();
-  };
-
-  // TOUCH EVENTS
   const handleTouchStart = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     handleStartDrag(touch.clientX, touch.clientY);
   };
 
-  // OUVINTES GLOBAIS DE JANELA PARA MOUSE E TOUCH NO MOBILE
   useEffect(() => {
     const onWindowTouchMove = (e: TouchEvent) => {
       if (!isDragging) return;
@@ -162,15 +151,15 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     };
 
     if (isDragging) {
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      window.addEventListener("mousemove", (e) => handleMoveDrag(e.clientX, e.clientY));
+      window.addEventListener("mouseup", handleEndDrag);
       window.addEventListener("touchmove", onWindowTouchMove, { passive: true });
       window.addEventListener("touchend", onWindowTouchEnd);
     }
 
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mousemove", (e) => handleMoveDrag(e.clientX, e.clientY));
+      window.removeEventListener("mouseup", handleEndDrag);
       window.removeEventListener("touchmove", onWindowTouchMove);
       window.removeEventListener("touchend", onWindowTouchEnd);
     };
@@ -183,7 +172,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     }
   };
 
-  // --- LÓGICA DE EQUIPAR / DESEQUIPAR ---
+  // EQUIPAR ITEM NAS ARMADURAS/ARMAS
   const handleEquipToSlot = async (slot: EquipSlotKey, itemToEquip: InventoryItem) => {
     let newEquip = { ...equipment };
     let newInv = inventory.filter((i) => i.id !== itemToEquip.id);
@@ -222,6 +211,52 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
 
     let newInv = [...inventory, itemInSlot];
     await saveEquipmentAndInventory(newEquip, newInv);
+  };
+
+  // USAR ITEM CONSUMÍVEL (CURA OU SUPORTE)
+  const handleUseConsumableItem = async (itemToUse: InventoryItem) => {
+    if (!character) return;
+
+    const newInv = inventory.filter((i) => i.id !== itemToUse.id);
+
+    if (itemToUse.category === "cura") {
+      const healAmount = itemToUse.effect_value || 10;
+      const maxHp = Number(character.max_hp) || 20;
+      const currentHp = Number(character.current_hp) || 0;
+      const newHp = Math.min(maxHp, currentHp + healAmount);
+
+      setCharacter((prev: any) => ({ ...prev, current_hp: newHp, inventory: newInv }));
+      setInventory(newInv);
+
+      await supabase
+        .from("characters")
+        .update({
+          current_hp: newHp,
+          inventory: newInv,
+        })
+        .eq("id", character.id);
+
+      alert(`🧪 ${character.name} usou "${itemToUse.name}" e recuperou +${healAmount} HP! (HP: ${newHp}/${maxHp})`);
+
+      if (onSendMessage) {
+        onSendMessage(`🧪 ${character.name} usou o item consumível "${itemToUse.name}" e recuperou +${healAmount} HP! (❤️ HP Atual: ${newHp}/${maxHp})`);
+      }
+    } else {
+      // SUPORTE
+      setCharacter((prev: any) => ({ ...prev, inventory: newInv }));
+      setInventory(newInv);
+
+      await supabase
+        .from("characters")
+        .update({ inventory: newInv })
+        .eq("id", character.id);
+
+      alert(`💣 ${character.name} usou "${itemToUse.name}"!`);
+
+      if (onSendMessage) {
+        onSendMessage(`💣 ${character.name} usou o item de suporte "${itemToUse.name}"! (Efeito Tático: ${itemToUse.description || "Ativado"})`);
+      }
+    }
   };
 
   const renderSlotCircle = (
@@ -303,7 +338,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                     Equipamentos de {character.name}
                   </h3>
                   <p className="text-[10px] text-amber-200/60">
-                    Toque nos slots circulares para gerenciar sua armadura e armas.
+                    Gerencie suas armaduras, armas e consumíveis adquiridos nas lojas.
                   </p>
                 </div>
               </div>
@@ -325,23 +360,17 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                   🛡️ Corpo & Slots de Equipamento
                 </span>
 
-                {/* LAYOUT CIRCULAR TÁTICO */}
                 <div className="flex flex-col items-center gap-3 pt-2">
-                  
-                  {/* CABEÇA */}
                   {renderSlotCircle("cabeca", "Cabeça", "🪖", "")}
 
-                  {/* PEITO E BRAÇOS */}
                   <div className="flex items-center justify-center gap-4 sm:gap-8">
                     {renderSlotCircle("bracos", "Braços", "🥊", "")}
                     {renderSlotCircle("peito", "Peito", "🛡️", "")}
                     {renderSlotCircle("cintura", "Cintura", "🥋", "")}
                   </div>
 
-                  {/* PERNAS */}
                   {renderSlotCircle("pernas", "Pernas", "🦵", "")}
 
-                  {/* MÃOS E ARMA DE 2 MÃOS */}
                   <div className="w-full pt-3 border-t border-amber-900/40 space-y-2">
                     <span className="block text-center text-[9px] font-bold text-amber-300/80 uppercase">
                       ⚔️ Mãos & Armas
@@ -355,8 +384,8 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                 </div>
               </div>
 
-              {/* MENSAGEM SE UM ITEM DO INVENTÁRIO FOR SELECIONADO PARA EQUIPAR */}
-              {selectedItem && (
+              {/* SELEÇÃO DE SLOT PARA ITEM EQUIPÁVEL */}
+              {selectedItem && selectedItem.category === "equipavel" && (
                 <div className="p-3 bg-amber-950/90 border border-amber-500 rounded-xl space-y-2 shadow-lg animate-pulse">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-amber-300">
@@ -405,55 +434,71 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                 {inventory.length === 0 ? (
                   <div className="p-4 bg-[#0b0704] border border-dashed border-amber-900/40 rounded-xl text-center">
                     <p className="text-xs text-amber-200/50">
-                      Sua mochila está vazia. Adquira armas e armaduras na aba <strong>Loja</strong>.
+                      Sua mochila está vazia. Adquira armas, armaduras e poções na aba <strong>Loja</strong>.
                     </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {inventory.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`p-2.5 bg-[#0b0704] border rounded-xl flex items-center justify-between gap-2 transition ${
-                          selectedItem?.id === item.id
-                            ? "border-amber-400 bg-amber-950/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
-                            : "border-amber-900/40"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {item.image_url ? (
-                            <img
-                              src={item.image_url}
-                              alt={item.name}
-                              className="w-9 h-9 object-cover rounded-lg border border-amber-700/50 shrink-0"
-                            />
-                          ) : (
-                            <div className="w-9 h-9 bg-amber-950 border border-amber-800 rounded-lg flex items-center justify-center text-sm shrink-0">
-                              🎒
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <h5 className="font-extrabold text-amber-200 text-xs truncate">
-                              {item.name}
-                            </h5>
-                            <p className="text-[9px] text-amber-200/60 truncate font-mono">
-                              {item.description || "Item do inventário"}
-                            </p>
-                          </div>
-                        </div>
+                    {inventory.map((item) => {
+                      const isEquipable = item.category === "equipavel";
 
-                        <button
-                          type="button"
-                          onClick={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
-                          className={`px-3 py-1.5 font-bold text-[10px] rounded-lg transition shrink-0 cursor-pointer ${
+                      return (
+                        <div
+                          key={item.id}
+                          className={`p-2.5 bg-[#0b0704] border rounded-xl flex items-center justify-between gap-2 transition ${
                             selectedItem?.id === item.id
-                              ? "bg-amber-400 text-black"
-                              : "bg-amber-900/80 hover:bg-amber-800 text-amber-200 border border-amber-700/60"
+                              ? "border-amber-400 bg-amber-950/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+                              : "border-amber-900/40"
                           }`}
                         >
-                          {selectedItem?.id === item.id ? "Selecionado" : "Equipar ➔"}
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {item.image_url ? (
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                className="w-9 h-9 object-cover rounded-lg border border-amber-700/50 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 bg-amber-950 border border-amber-800 rounded-lg flex items-center justify-center text-sm shrink-0">
+                                {item.category === "cura" ? "🧪" : item.category === "suporte" ? "💣" : "⚔️"}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <h5 className="font-extrabold text-amber-200 text-xs truncate">
+                                {item.name}
+                              </h5>
+                              <p className="text-[9px] text-amber-200/60 truncate font-mono">
+                                {item.category === "cura" && item.effect_value
+                                  ? `Restaura +${item.effect_value} HP`
+                                  : item.description || "Consumível"}
+                              </p>
+                            </div>
+                          </div>
+
+                          {isEquipable ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
+                              className={`px-3 py-1.5 font-bold text-[10px] rounded-lg transition shrink-0 cursor-pointer ${
+                                selectedItem?.id === item.id
+                                  ? "bg-amber-400 text-black"
+                                  : "bg-amber-900/80 hover:bg-amber-800 text-amber-200 border border-amber-700/60"
+                              }`}
+                            >
+                              {selectedItem?.id === item.id ? "Selecionado" : "Equipar ➔"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleUseConsumableItem(item)}
+                              className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 active:scale-95 text-white font-extrabold text-[10px] rounded-lg shadow transition shrink-0 cursor-pointer"
+                            >
+                              {item.category === "cura" ? "Usar 🧪" : "Usar 💣"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

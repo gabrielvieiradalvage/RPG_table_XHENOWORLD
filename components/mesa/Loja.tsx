@@ -19,6 +19,7 @@ export interface ShopItem {
   price: number;
   category: "equipavel" | "cura" | "suporte";
   description: string;
+  effect_value?: number;
   image_url?: string | null;
 }
 
@@ -51,6 +52,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
   const [newItemName, setNewItemName] = useState("");
   const [newItemPrice, setNewItemPrice] = useState(10);
   const [newItemCategory, setNewItemCategory] = useState<"equipavel" | "cura" | "suporte">("equipavel");
+  const [newItemEffectValue, setNewItemEffectValue] = useState<number>(10);
   const [newItemDesc, setNewItemDesc] = useState("");
   const [newItemImageUrl, setNewItemImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -107,7 +109,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
     }
   };
 
-  // UPLOAD DE IMAGEM DO ITEM PARA O SUPABASE STORAGE
+  // UPLOAD DE IMAGEM DO ITEM
   const handleItemImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !isMestre) return;
@@ -176,6 +178,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
       price: Number(newItemPrice),
       category: newItemCategory,
       description: newItemDesc.trim(),
+      effect_value: Number(newItemEffectValue) || 0,
       image_url: newItemImageUrl.trim() || null,
     };
 
@@ -206,7 +209,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
     }
   };
 
-  // COMPRAR ITEM (JOGADOR E MESTRE)
+  // COMPRAR ITEM (JOGADOR)
   const handleBuyItem = async (item: ShopItem) => {
     if (!myCharacter) {
       alert("Você precisa ter um personagem nesta mesa para comprar itens!");
@@ -228,6 +231,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
         name: item.name,
         category: item.category,
         description: item.description,
+        effect_value: item.effect_value || 0,
         image_url: item.image_url,
         bought_at: new Date().toISOString(),
       },
@@ -245,7 +249,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
       alert("Erro na transação: " + error.message);
     } else {
       setMyCharacter((prev: any) => ({ ...prev, moedas: newCoins, inventory: updatedInventory }));
-      alert(`🛒 Compra realizada! "${item.name}" foi adicionado ao inventário de ${myCharacter.name}.`);
+      alert(`🛒 Compra realizada! "${item.name}" foi adicionado à mochila de ${myCharacter.name}.`);
 
       if (onSendMessage) {
         onSendMessage(`🛒 ${myCharacter.name} comprou "${item.name}" por 🪙 ${item.price} moedas na loja ${activeShop?.name}.`);
@@ -374,6 +378,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                     </span>
                     {isMestre && (
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteShop(shop.id);
@@ -396,6 +401,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
           <div className="p-3 bg-[#0b0c16] border border-cyan-800/50 rounded-xl flex items-center justify-between gap-2 shrink-0">
             <div className="flex items-center gap-2.5 min-w-0">
               <button
+                type="button"
                 onClick={() => setActiveShop(null)}
                 className="px-2 py-1 bg-[#12131f] border border-purple-800/40 hover:bg-purple-900/40 text-purple-300 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
               >
@@ -430,7 +436,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Espada Longa"
+                    placeholder="Ex: Poção de HP / Bomba de Fumaça"
                     value={newItemName}
                     onChange={(e) => setNewItemName(e.target.value)}
                     className="w-full bg-[#12131f] border border-purple-900/50 rounded-lg px-2.5 py-1.5 text-xs text-white"
@@ -451,18 +457,54 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[9px] text-gray-400 block mb-0.5">Classificação</label>
+                  <label className="text-[9px] text-gray-400 block mb-0.5">Classificação Tática</label>
                   <select
                     value={newItemCategory}
                     onChange={(e: any) => setNewItemCategory(e.target.value)}
                     className="w-full bg-[#12131f] border border-purple-900/50 rounded-lg p-1.5 text-xs text-white"
                   >
                     <option value="equipavel">⚔️ Equipável (Arma/Armadura)</option>
-                    <option value="cura">🧪 Cura (Poções/Maçãs)</option>
-                    <option value="suporte">💣 Suporte (Bombas/Pergaminhos)</option>
+                    <option value="cura">🧪 Cura (Restaura HP Instantâneo)</option>
+                    <option value="suporte">💣 Suporte (Consumível/Efeito Tático)</option>
                   </select>
                 </div>
 
+                {newItemCategory !== "equipavel" ? (
+                  <div>
+                    <label className="text-[9px] text-amber-400 font-bold block mb-0.5">
+                      {newItemCategory === "cura" ? "Cura de HP (Valor)" : "Intensidade do Efeito"}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={newItemEffectValue}
+                      onChange={(e) => setNewItemEffectValue(Number(e.target.value))}
+                      placeholder="Ex: 15 para +15 HP"
+                      className="w-full bg-[#12131f] border border-amber-800/60 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-mono font-bold"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[9px] text-gray-400 block mb-0.5">Imagem do Produto</label>
+                    <label className="flex items-center justify-center gap-1.5 bg-[#12131f] border border-purple-900/50 hover:border-cyan-400 rounded-lg px-2 py-1.5 text-xs text-gray-300 cursor-pointer transition truncate">
+                      <span>🖼️</span>
+                      <span className="truncate">
+                        {isUploadingImage ? "Enviando..." : newItemImageUrl ? "Imagem OK ✓" : "Upload Imagem"}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleItemImageUpload}
+                        disabled={isUploadingImage}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {newItemCategory !== "equipavel" && (
                 <div>
                   <label className="text-[9px] text-gray-400 block mb-0.5">Imagem do Produto</label>
                   <label className="flex items-center justify-center gap-1.5 bg-[#12131f] border border-purple-900/50 hover:border-cyan-400 rounded-lg px-2 py-1.5 text-xs text-gray-300 cursor-pointer transition truncate">
@@ -479,12 +521,12 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                     />
                   </label>
                 </div>
-              </div>
+              )}
 
               {newItemImageUrl && (
                 <div className="flex items-center gap-2 p-1.5 bg-[#12131f] border border-purple-900/40 rounded-lg">
                   <img src={newItemImageUrl} alt="Prévia" className="w-8 h-8 object-cover rounded border border-purple-500/50 shrink-0" />
-                  <span className="text-[9px] text-emerald-400 truncate flex-1 font-mono">Imagem anexada com sucesso!</span>
+                  <span className="text-[9px] text-emerald-400 truncate flex-1 font-mono">Imagem anexada!</span>
                   <button
                     type="button"
                     onClick={() => setNewItemImageUrl("")}
@@ -496,10 +538,10 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
               )}
 
               <div>
-                <label className="text-[9px] text-gray-400 block mb-0.5">Descrição do Item / Efeitos</label>
+                <label className="text-[9px] text-gray-400 block mb-0.5">Descrição do Item / Efeitos Táticos</label>
                 <input
                   type="text"
-                  placeholder="Ex: Restaura 15 HP ou +2 de Dano Físico"
+                  placeholder="Ex: Restaura 15 HP ou Causa cegueira por 1 turno"
                   value={newItemDesc}
                   onChange={(e) => setNewItemDesc(e.target.value)}
                   className="w-full bg-[#12131f] border border-purple-900/50 rounded-lg px-2.5 py-1.5 text-xs text-white"
@@ -511,7 +553,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                 disabled={isUploadingImage}
                 className="w-full py-2 bg-gradient-to-r from-purple-600 to-cyan-600 font-bold text-white text-xs rounded-lg cursor-pointer disabled:opacity-50"
               >
-                Cadastrar Produto
+                Cadastrar Produto no Estoque
               </button>
             </form>
           )}
@@ -558,7 +600,14 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                         )}
                         <div className="min-w-0">
                           <h5 className="font-extrabold text-white text-xs truncate">{item.name}</h5>
-                          {getCategoryBadge(item.category)}
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {getCategoryBadge(item.category)}
+                            {item.category === "cura" && item.effect_value && (
+                              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60 font-mono">
+                                +{item.effect_value} HP
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -574,6 +623,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
 
                   <div className="flex items-center gap-1.5 pt-1 border-t border-purple-900/30">
                     <button
+                      type="button"
                       onClick={() => handleBuyItem(item)}
                       className="flex-1 py-1.5 bg-gradient-to-r from-amber-600 to-yellow-500 active:scale-95 text-black font-extrabold text-[11px] rounded-lg shadow transition cursor-pointer"
                     >
@@ -582,6 +632,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
 
                     {isMestre && (
                       <button
+                        type="button"
                         onClick={() => handleDeleteItem(item.id)}
                         className="p-1.5 bg-red-950/80 active:bg-red-800 text-red-300 rounded-lg text-xs cursor-pointer shrink-0"
                         title="Remover produto do estoque"
