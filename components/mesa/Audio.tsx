@@ -33,6 +33,23 @@ export default function Audio({
 }: AudioProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [volume, setVolume] = useState<number>(0.8);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  // Carrega volume salvo no navegador do usuário
+  useEffect(() => {
+    const savedVolume = localStorage.getItem("xhenos_audio_volume");
+    if (savedVolume !== null) {
+      const parsed = parseFloat(savedVolume);
+      if (!isNaN(parsed)) setVolume(parsed);
+    }
+  }, []);
+
+  // Sincroniza o volume do elemento audio HTML
+  useEffect(() => {
+    if (!audioRef.current) return;
+    audioRef.current.volume = isMuted ? 0 : volume;
+  }, [volume, isMuted]);
 
   useEffect(() => {
     if (!audioRef.current) return;
@@ -41,6 +58,7 @@ export default function Audio({
       if (audioRef.current.src !== currentTrack.audio_url) {
         audioRef.current.src = currentTrack.audio_url;
       }
+      audioRef.current.volume = isMuted ? 0 : volume;
       audioRef.current
         .play()
         .then(() => setAutoplayBlocked(false))
@@ -54,8 +72,19 @@ export default function Audio({
     }
   }, [currentTrack, isPlaying]);
 
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    if (isMuted && newVolume > 0) setIsMuted(false);
+    localStorage.setItem("xhenos_audio_volume", newVolume.toString());
+  };
+
+  const handleToggleMute = () => {
+    setIsMuted((prev) => !prev);
+  };
+
   const handleUnlockAutoplay = () => {
     if (audioRef.current && currentTrack) {
+      audioRef.current.volume = isMuted ? 0 : volume;
       audioRef.current
         .play()
         .then(() => setAutoplayBlocked(false))
@@ -123,6 +152,54 @@ export default function Audio({
           </div>
         </div>
       )}
+
+      {/* CONTROLE DE VOLUME LOCAL (DISPONÍVEL PARA TODOS OS JOGADORES) */}
+      <div className="p-3 bg-[#0b0c16] border border-purple-800/40 rounded-xl space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="block text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className="hover:scale-110 transition-transform cursor-pointer"
+              title={isMuted ? "Desmutar" : "Mutar"}
+            >
+              {isMuted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+            </button>
+            Volume Local
+          </span>
+          <span className="text-[10px] font-mono font-bold text-cyan-400">
+            {isMuted ? "MUTADO" : `${Math.round(volume * 100)}%`}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleVolumeChange(Math.max(0, volume - 0.1))}
+            className="w-7 h-7 bg-[#12131f] border border-purple-800/50 hover:border-cyan-400 text-cyan-300 font-bold rounded-lg text-xs flex items-center justify-center transition cursor-pointer shrink-0"
+          >
+            -
+          </button>
+
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={isMuted ? 0 : volume}
+            onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+            className="flex-1 accent-cyan-400 cursor-pointer h-2 bg-[#12131f] rounded-lg border border-purple-900/40"
+          />
+
+          <button
+            type="button"
+            onClick={() => handleVolumeChange(Math.min(1, volume + 0.1))}
+            className="w-7 h-7 bg-[#12131f] border border-purple-800/50 hover:border-cyan-400 text-cyan-300 font-bold rounded-lg text-xs flex items-center justify-center transition cursor-pointer shrink-0"
+          >
+            +
+          </button>
+        </div>
+      </div>
 
       {/* UPLOAD DE ÁUDIO (Apenas Mestre) */}
       {isMestre && (

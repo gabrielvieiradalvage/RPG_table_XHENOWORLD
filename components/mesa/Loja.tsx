@@ -53,6 +53,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
   const [newItemCategory, setNewItemCategory] = useState<"equipavel" | "cura" | "suporte">("equipavel");
   const [newItemDesc, setNewItemDesc] = useState("");
   const [newItemImageUrl, setNewItemImageUrl] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     fetchShops();
@@ -104,6 +105,24 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
     if (data) {
       setMyCharacter(data);
     }
+  };
+
+  // UPLOAD DE IMAGEM DO ITEM PARA O SUPABASE STORAGE
+  const handleItemImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !isMestre) return;
+
+    setIsUploadingImage(true);
+    const fileName = `${roomId}/${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+    const { error } = await supabase.storage.from("itens").upload(fileName, file);
+
+    if (error) {
+      alert("Erro ao enviar imagem: " + error.message);
+    } else {
+      const { data: urlData } = supabase.storage.from("itens").getPublicUrl(fileName);
+      setNewItemImageUrl(urlData.publicUrl);
+    }
+    setIsUploadingImage(false);
   };
 
   // CRIAR LOJA (MESTRE)
@@ -187,7 +206,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
     }
   };
 
-  // COMPRAR ITEM (JOGADOR)
+  // COMPRAR ITEM (JOGADOR E MESTRE)
   const handleBuyItem = async (item: ShopItem) => {
     if (!myCharacter) {
       alert("Você precisa ter um personagem nesta mesa para comprar itens!");
@@ -293,7 +312,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
           {/* FORMULÁRIO DE CRIAR LOJA */}
           {isCreatingShop && isMestre && (
             <form onSubmit={handleCreateShop} className="p-3 bg-[#0b0c16] border border-purple-800/50 rounded-xl space-y-2.5">
-              <span className="block text-[10px] font-bold text-cyan-400 uppercase">Nova Estabelecimento</span>
+              <span className="block text-[10px] font-bold text-cyan-400 uppercase">Novo Estabelecimento</span>
               <div className="grid grid-cols-4 gap-2">
                 <input
                   type="text"
@@ -320,7 +339,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
               />
               <button
                 type="submit"
-                className="w-full py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:from-purple-500 font-bold text-white text-xs rounded-lg"
+                className="w-full py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:from-purple-500 font-bold text-white text-xs rounded-lg cursor-pointer"
               >
                 Confirmar Criação
               </button>
@@ -359,7 +378,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                           e.stopPropagation();
                           handleDeleteShop(shop.id);
                         }}
-                        className="p-1.5 bg-red-950/80 active:bg-red-800 text-red-300 rounded-lg text-xs"
+                        className="p-1.5 bg-red-950/80 active:bg-red-800 text-red-300 rounded-lg text-xs cursor-pointer"
                       >
                         🗑️
                       </button>
@@ -378,7 +397,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 onClick={() => setActiveShop(null)}
-                className="px-2 py-1 bg-[#12131f] border border-purple-800/40 hover:bg-purple-900/40 text-purple-300 rounded-lg text-xs font-bold shrink-0"
+                className="px-2 py-1 bg-[#12131f] border border-purple-800/40 hover:bg-purple-900/40 text-purple-300 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
               >
                 ← Voltar
               </button>
@@ -443,17 +462,38 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                     <option value="suporte">💣 Suporte (Bombas/Pergaminhos)</option>
                   </select>
                 </div>
+
                 <div>
-                  <label className="text-[9px] text-gray-400 block mb-0.5">URL Imagem (Opcional)</label>
-                  <input
-                    type="text"
-                    placeholder="https://..."
-                    value={newItemImageUrl}
-                    onChange={(e) => setNewItemImageUrl(e.target.value)}
-                    className="w-full bg-[#12131f] border border-purple-900/50 rounded-lg px-2.5 py-1.5 text-xs text-white"
-                  />
+                  <label className="text-[9px] text-gray-400 block mb-0.5">Imagem do Produto</label>
+                  <label className="flex items-center justify-center gap-1.5 bg-[#12131f] border border-purple-900/50 hover:border-cyan-400 rounded-lg px-2 py-1.5 text-xs text-gray-300 cursor-pointer transition truncate">
+                    <span>🖼️</span>
+                    <span className="truncate">
+                      {isUploadingImage ? "Enviando..." : newItemImageUrl ? "Imagem Carregada ✓" : "Upload Imagem"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleItemImageUpload}
+                      disabled={isUploadingImage}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
               </div>
+
+              {newItemImageUrl && (
+                <div className="flex items-center gap-2 p-1.5 bg-[#12131f] border border-purple-900/40 rounded-lg">
+                  <img src={newItemImageUrl} alt="Prévia" className="w-8 h-8 object-cover rounded border border-purple-500/50 shrink-0" />
+                  <span className="text-[9px] text-emerald-400 truncate flex-1 font-mono">Imagem anexada com sucesso!</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewItemImageUrl("")}
+                    className="text-[10px] text-red-400 hover:text-red-300 px-1 font-bold cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
 
               <div>
                 <label className="text-[9px] text-gray-400 block mb-0.5">Descrição do Item / Efeitos</label>
@@ -468,7 +508,8 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
 
               <button
                 type="submit"
-                className="w-full py-2 bg-gradient-to-r from-purple-600 to-cyan-600 font-bold text-white text-xs rounded-lg cursor-pointer"
+                disabled={isUploadingImage}
+                className="w-full py-2 bg-gradient-to-r from-purple-600 to-cyan-600 font-bold text-white text-xs rounded-lg cursor-pointer disabled:opacity-50"
               >
                 Cadastrar Produto
               </button>
@@ -532,30 +573,21 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
                   </div>
 
                   <div className="flex items-center gap-1.5 pt-1 border-t border-purple-900/30">
-                    {!isMestre && (
-                      <button
-                        onClick={() => handleBuyItem(item)}
-                        className="flex-1 py-1.5 bg-gradient-to-r from-amber-600 to-yellow-500 active:scale-95 text-black font-extrabold text-[11px] rounded-lg shadow transition cursor-pointer"
-                      >
-                        Comprar (🪙 {item.price})
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleBuyItem(item)}
+                      className="flex-1 py-1.5 bg-gradient-to-r from-amber-600 to-yellow-500 active:scale-95 text-black font-extrabold text-[11px] rounded-lg shadow transition cursor-pointer"
+                    >
+                      Comprar (🪙 {item.price})
+                    </button>
 
                     {isMestre && (
-                      <>
-                        <button
-                          onClick={() => handleBuyItem(item)}
-                          className="flex-1 py-1.5 bg-amber-950 hover:bg-amber-800 text-amber-300 border border-amber-800/50 font-bold text-[10px] rounded-lg cursor-pointer"
-                        >
-                          Testar Compra
-                        </button>
-                        <button
-                          onClick={() => handleDeleteItem(item.id)}
-                          className="p-1.5 bg-red-950/80 active:bg-red-800 text-red-300 rounded-lg text-xs"
-                        >
-                          🗑️
-                        </button>
-                      </>
+                      <button
+                        onClick={() => handleDeleteItem(item.id)}
+                        className="p-1.5 bg-red-950/80 active:bg-red-800 text-red-300 rounded-lg text-xs cursor-pointer shrink-0"
+                        title="Remover produto do estoque"
+                      >
+                        🗑️
+                      </button>
                     )}
                   </div>
                 </div>
