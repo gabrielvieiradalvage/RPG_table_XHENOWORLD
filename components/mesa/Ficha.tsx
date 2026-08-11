@@ -318,6 +318,9 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   const handleDeleteAbility = async (abilityId: string) => {
     if (!activeChar) return;
+    const abilityToRemove = (activeChar.abilities || []).find((a) => a && a.id === abilityId);
+    if (abilityToRemove && !confirm(`Deseja desaprender a habilidade "${abilityToRemove.name}"?`)) return;
+
     const updatedAbilities = (activeChar.abilities || []).filter((a) => a && a.id !== abilityId && a.name && a.name.trim() !== "");
     await updateCharacterData({ ...activeChar, abilities: updatedAbilities }, { abilities: updatedAbilities });
   };
@@ -335,7 +338,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     triggerRoll(0, 0, `💤 Descansou! Recuperou +3 ⭐ de Perícia e +${staminaRecovered}⚡ de Stamina [d10] (${newStamina}/${activeChar.max_stamina})`);
   };
 
-  // PROCESSAMENTO DE DANO SINCRONIZADO NO SUPABASE E ESTADO LOCAL
+  // PROCESSAMENTO DE DANO SINCRONIZADO COM BARREIRA NO SUPABASE E ESTADO LOCAL
   const applyDamageToTarget = async (targetId: string, damageInput: number) => {
     const damage = Number(damageInput) || 0;
     const { data: targetData, error } = await supabase
@@ -355,12 +358,12 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     if (currentShield > 0) {
       if (damage <= currentShield) {
         newShield = currentShield - damage;
-        logText = ` 🎯 em ${targetData.name} (🛡️ Escudo absorveu ${damage} de dano! Escudo restante: ${newShield})`;
+        logText = ` 🎯 em ${targetData.name} (🛡️ Barreira absorveu ${damage} de dano! Barreira restante: ${newShield})`;
       } else {
         const overflowDamage = damage - currentShield;
         newShield = 0;
         newHp = Math.max(0, currentHp - overflowDamage);
-        logText = ` 🎯 em ${targetData.name} (💥 Escudo QUEBROU! Absorveu ${currentShield} e causou ${overflowDamage} no HP! ❤️ HP: ${newHp})`;
+        logText = ` 🎯 em ${targetData.name} (💥 Barreira QUEBROU! Absorveu ${currentShield} e causou ${overflowDamage} no HP! ❤️ HP: ${newHp})`;
       }
     } else {
       newHp = Math.max(0, currentHp - damage);
@@ -462,7 +465,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
         actionLog = `🧪 [Cura] ${activeChar.name} usou "${ability.name}" em ${targetName} e curou +${rollValue} HP! (❤️ HP: ${newHp}/${maxHp})`;
       }
     }
-    // 2. TIPO ESCUDO
+    // 2. TIPO BARREIRA / ESCUDO
     else if (ability.type === "Escudo") {
       const targetCharId = selectedTargetId || activeChar.id;
       const { data: targetData } = await supabase
@@ -497,7 +500,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
         }
 
         const targetName = targetCharId === activeChar.id ? "si mesmo" : targetData.name;
-        actionLog = `🔰 [Escudo] ${activeChar.name} usou "${ability.name}" em ${targetName} concedendo +${rollValue} de Escudo! (🛡️ Escudo Total: ${newShield})`;
+        actionLog = `🔰 [Barreira] ${activeChar.name} usou "${ability.name}" em ${targetName} concedendo +${rollValue} de Barreira! (🛡️ Barreira Total: ${newShield})`;
       }
     }
     // 3. TIPO SUPORTE (BUFF / DEBUFF)
@@ -638,8 +641,8 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
             <button type="submit" className="w-full py-2 bg-cyan-600 active:bg-cyan-500 font-bold rounded text-xs cursor-pointer">Salvar Alterações</button>
           </form>
 
-          {/* ADICIONAR HABILIDADE COM CATEGORIAS TÁTICAS */}
-          <div className="pt-2 border-t border-purple-900/40 space-y-1.5">
+          {/* CADASTRAR E DESAPRENDER HABILIDADES */}
+          <div className="pt-2 border-t border-purple-900/40 space-y-2">
             <span className="text-[10px] font-bold text-purple-300 block">➕ Adicionar Habilidade</span>
             <form onSubmit={handleAddAbility} className="space-y-2 bg-[#12131f] p-2.5 rounded-lg border border-purple-900/40">
               <input type="text" required placeholder="Nome da Habilidade" value={newAbilityName} onChange={(e) => setNewAbilityName(e.target.value)} className="w-full px-2 py-1.5 bg-[#0b0c16] border border-purple-800/40 rounded text-white text-[11px]" />
@@ -652,7 +655,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                   <option value="Magia">✨ Magia (Dano Arcano/Elementar)</option>
                   <option value="Cura">🧪 Cura (Restaura HP do Alvo)</option>
                   <option value="Suporte">🛡️ Suporte (Buffs / Debuffs)</option>
-                  <option value="Escudo">🔰 Escudo (Barreira Absorvente)</option>
+                  <option value="Escudo">🔰 Barreira (Proteção Extra)</option>
                 </select>
               </div>
 
@@ -669,6 +672,34 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
               <button type="submit" className="w-full py-1.5 bg-purple-700 active:bg-purple-600 text-white font-bold text-[10px] rounded cursor-pointer">+ Cadastrar Habilidade</button>
             </form>
+
+            {/* LISTAGEM PARA DESAPRENDER HABILIDADES */}
+            {validAbilities.length > 0 && (
+              <div className="space-y-1 pt-2">
+                <span className="text-[10px] font-bold text-red-400 block uppercase">🔥 Desaprender Habilidades</span>
+                <div className="space-y-1">
+                  {validAbilities.map((ability) => (
+                    <div key={ability.id} className="p-2 bg-[#12131f] border border-red-900/40 rounded-lg flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <span className="font-bold text-white text-[10px] block truncate">
+                          {getTypeIcon(ability.type)} {ability.name}
+                        </span>
+                        <span className="text-[8px] text-gray-400 block truncate">
+                          {ability.cost} ⭐ • d{ability.dieSides}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAbility(ability.id)}
+                        className="px-2 py-1 bg-red-950 hover:bg-red-800 text-red-200 border border-red-700/60 font-bold text-[9px] rounded cursor-pointer transition shrink-0"
+                      >
+                        Desaprender 🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -758,7 +789,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
               </select>
             </div>
 
-            {/* VITAIS COM EXIBIÇÃO EM TEMPO REAL DO ESCUDO */}
+            {/* VITAIS COM EXIBIÇÃO EM TEMPO REAL DA BARREIRA */}
             <div className="space-y-2">
               <div className="bg-[#0b0c16] p-2.5 rounded-xl border border-red-900/40">
                 <div className="flex justify-between items-center text-[10px] font-bold mb-1">
@@ -766,7 +797,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                     <span className="text-red-400">❤️ HP: {activeChar.current_hp} / {activeChar.max_hp || 20}</span>
                     {currentShieldValue > 0 && (
                       <span className="text-cyan-300 font-bold bg-cyan-950/80 border border-cyan-500/60 px-1.5 py-0.2 rounded font-mono">
-                        (+{currentShieldValue} 🛡️ Escudo)
+                        (+{currentShieldValue} 🛡️ Barreira)
                       </span>
                     )}
                   </div>
@@ -806,7 +837,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
             {/* HABILIDADES */}
             {validAbilities.length > 0 && (
               <div className="space-y-1.5 pt-1 border-t border-purple-900/40">
-                <span className="block text-[10px] font-bold uppercase text-cyan-400">⚔️ Habilidades</span>
+                <span className="block text-[10px] font-bold uppercase text-cyan-400">⚔️ Habilidades Aprendidas</span>
                 <div className="space-y-1.5">
                   {validAbilities.map((ability) => (
                     <div key={ability.id} className="p-2.5 bg-[#0b0c16] border border-purple-800/40 rounded-lg flex items-center justify-between gap-2">
@@ -822,11 +853,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                         <button onClick={() => handleUseAbility(ability)} className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-cyan-600 active:opacity-80 text-white font-bold text-[10px] rounded cursor-pointer">
                           Usar
                         </button>
-                        {isEditing && (
-                          <button onClick={() => handleDeleteAbility(ability.id)} className="px-2 py-1.5 bg-red-950 text-red-300 text-[9px] rounded font-bold cursor-pointer">
-                            ✕
-                          </button>
-                        )}
                       </div>
                     </div>
                   ))}
