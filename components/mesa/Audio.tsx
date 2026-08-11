@@ -36,7 +36,7 @@ export default function Audio({
   const [volume, setVolume] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
-  // Carrega volume salvo no navegador do usuário
+  // Carrega volume salvo do localStorage
   useEffect(() => {
     const savedVolume = localStorage.getItem("xhenos_audio_volume");
     if (savedVolume !== null) {
@@ -45,27 +45,33 @@ export default function Audio({
     }
   }, []);
 
-  // Sincroniza o volume do elemento audio HTML
+  // Aplica alteração de volume e mute diretamente na tag HTML de áudio
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
+  // Controle único de reprodução de áudio
   useEffect(() => {
     if (!audioRef.current) return;
 
     if (currentTrack && isPlaying) {
-      if (audioRef.current.src !== currentTrack.audio_url) {
+      const currentSrc = audioRef.current.getAttribute("src");
+      if (currentSrc !== currentTrack.audio_url) {
         audioRef.current.src = currentTrack.audio_url;
       }
+      
       audioRef.current.volume = isMuted ? 0 : volume;
-      audioRef.current
-        .play()
-        .then(() => setAutoplayBlocked(false))
-        .catch((err) => {
-          console.warn("Autoplay bloqueado pelo navegador/celular:", err);
-          setAutoplayBlocked(true);
-        });
+
+      if (audioRef.current.paused) {
+        audioRef.current
+          .play()
+          .then(() => setAutoplayBlocked(false))
+          .catch((err) => {
+            console.warn("Autoplay bloqueado pelo navegador/celular:", err);
+            setAutoplayBlocked(true);
+          });
+      }
     } else {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -94,6 +100,7 @@ export default function Audio({
 
   return (
     <div className="space-y-3.5 w-full max-w-full">
+      {/* ÚNICO ELEMENTO DE ÁUDIO DA MESA */}
       <audio ref={audioRef} preload="auto" loop />
 
       {/* ALERTA DE AUTOPLAY BLOQUEADO PELO NAVEGADOR / CELULAR */}
@@ -106,6 +113,7 @@ export default function Audio({
             </p>
           </div>
           <button
+            type="button"
             onClick={handleUnlockAutoplay}
             className="px-3 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-xs font-black text-black rounded-lg transition cursor-pointer shrink-0 shadow-md"
           >
@@ -134,6 +142,7 @@ export default function Audio({
 
           <div className="flex items-center gap-1.5 shrink-0">
             <button
+              type="button"
               onClick={handleUnlockAutoplay}
               className="p-1.5 px-2.5 bg-cyan-950 active:bg-cyan-800 text-cyan-300 border border-cyan-700/60 rounded-lg text-[10px] font-bold transition cursor-pointer"
               title="Sincronizar Áudio Manualmente"
@@ -143,6 +152,7 @@ export default function Audio({
 
             {isMestre && onStopTrack && (
               <button
+                type="button"
                 onClick={onStopTrack}
                 className="px-3 py-1.5 bg-red-950 active:bg-red-800 text-[10px] font-bold text-red-200 rounded-lg transition border border-red-800/60 cursor-pointer"
               >
@@ -153,10 +163,10 @@ export default function Audio({
         </div>
       )}
 
-      {/* CONTROLE DE VOLUME LOCAL (DISPONÍVEL PARA TODOS OS JOGADORES) */}
+      {/* CONTROLE DE VOLUME LOCAL */}
       <div className="p-3 bg-[#0b0c16] border border-purple-800/40 rounded-xl space-y-2">
         <div className="flex items-center justify-between">
-          <span className="block text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+          <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
             <button
               type="button"
               onClick={handleToggleMute}
@@ -275,6 +285,7 @@ export default function Audio({
                   <div className="flex items-center gap-1.5 shrink-0">
                     {isMestre && (
                       <button
+                        type="button"
                         onClick={() => (isThisPlaying && onStopTrack ? onStopTrack() : onPlayTrack(track))}
                         className={`px-3 py-1.5 text-[10px] font-bold rounded-lg transition cursor-pointer ${
                           isThisPlaying
@@ -288,6 +299,7 @@ export default function Audio({
 
                     {isMestre && onDeleteTrack && (
                       <button
+                        type="button"
                         onClick={() => onDeleteTrack(track)}
                         title="Excluir Trilha"
                         className="p-1.5 px-2 bg-red-950/60 hover:bg-red-900 active:bg-red-700 text-red-300 hover:text-white rounded-lg transition border border-red-800/40 cursor-pointer text-xs"

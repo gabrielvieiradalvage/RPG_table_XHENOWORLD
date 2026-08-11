@@ -91,7 +91,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const [currentAudio, setCurrentAudio] = useState<RoomAudio | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isUploadingAudio, setIsUploadingAudio] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioChannelRef = useRef<any>(null);
 
   // Chat & IA
@@ -191,22 +190,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       supabase.removeChannel(channel);
     };
   }, [roomId]);
-
-  // REPRODUÇÃO GLOBAL DO PLAYER DE ÁUDIO
-  useEffect(() => {
-    if (!audioRef.current) return;
-
-    if (currentAudio && isPlaying) {
-      if (audioRef.current.src !== currentAudio.audio_url) {
-        audioRef.current.src = currentAudio.audio_url;
-      }
-      audioRef.current.play().catch((err) => {
-        console.warn("Autoplay bloqueado pelo navegador:", err);
-      });
-    } else {
-      audioRef.current.pause();
-    }
-  }, [currentAudio, isPlaying]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -593,8 +576,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="h-[100dvh] w-screen bg-[#080811] text-white flex flex-col overflow-hidden select-none touch-none">
-      <audio ref={audioRef} loop />
-
       <ConvidarAmigos roomId={roomId} isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
       
       {/* COMPONENTE FLUTUANTE DA BOLSA DE ITENS */}
@@ -864,8 +845,9 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
             })}
           </div>
 
+          {/* ABAS COM RENDERIZAÇÃO PERSISTENTE PARA ÁUDIO E ESTADOS LOCAIS */}
           <div className="flex-1 p-3 sm:p-4 overflow-y-auto">
-            {activeTab === "ficha" && (
+            <div className={activeTab === "ficha" ? "block" : "hidden"}>
               <Ficha
                 roomId={roomId}
                 userId={currentUser?.id}
@@ -873,18 +855,38 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
                 onRollDice={handleRollDice}
                 onOpenChat={() => setMobileView("chat")}
               />
-            )}
-            {activeTab === "tokens" && <Tokens roomId={roomId} />}
-            {activeTab === "loja" && (
+            </div>
+
+            <div className={activeTab === "tokens" ? "block" : "hidden"}>
+              <Tokens roomId={roomId} />
+            </div>
+
+            <div className={activeTab === "loja" ? "block" : "hidden"}>
               <Loja
                 roomId={roomId}
                 isMestre={isMestre}
                 currentUserId={currentUser?.id}
                 onSendMessage={handleSendMessage}
               />
-            )}
-            {activeTab === "mapas" && <Mapas isMestre={isMestre} maps={maps} activeMapUrl={activeMapUrl} isUploadingMap={isUploadingMap} onMapUpload={handleMapUpload} onSelectMap={(map) => setActiveMapUrl(map.image_url)} onDeleteMap={handleDeleteMap} mapScale={mapScale} onMapScaleChange={setMapScale} mapFitMode={mapFitMode} onFitModeChange={(mode) => setMapFitMode(mode)} />}
-            {activeTab === "audio" && (
+            </div>
+
+            <div className={activeTab === "mapas" ? "block" : "hidden"}>
+              <Mapas
+                isMestre={isMestre}
+                maps={maps}
+                activeMapUrl={activeMapUrl}
+                isUploadingMap={isUploadingMap}
+                onMapUpload={handleMapUpload}
+                onSelectMap={(map) => setActiveMapUrl(map.image_url)}
+                onDeleteMap={handleDeleteMap}
+                mapScale={mapScale}
+                onMapScaleChange={setMapScale}
+                mapFitMode={mapFitMode}
+                onFitModeChange={(mode) => setMapFitMode(mode)}
+              />
+            </div>
+
+            <div className={activeTab === "audio" || !isMestre ? (activeTab === "audio" ? "block" : "hidden") : "hidden"}>
               <Audio
                 isMestre={isMestre}
                 playlist={playlist}
@@ -896,9 +898,24 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
                 onStopTrack={handleStopTrack}
                 onDeleteTrack={handleDeleteAudio}
               />
+            </div>
+
+            {isMestre && (
+              <div className={activeTab === "ia" ? "block" : "hidden"}>
+                <IaPersonagens
+                  roomId={roomId}
+                  mapTokens={mapTokens}
+                  activeNpcId={activeIaNpc?.id || null}
+                  onSelectActiveNpc={(npc) => setActiveIaNpc(npc)}
+                />
+              </div>
             )}
-            {activeTab === "ia" && isMestre && <IaPersonagens roomId={roomId} mapTokens={mapTokens} activeNpcId={activeIaNpc?.id || null} onSelectActiveNpc={(npc) => setActiveIaNpc(npc)} />}
-            {activeTab === "mestre" && isMestre && <FerramentasDoMestre roomId={roomId} />}
+
+            {isMestre && (
+              <div className={activeTab === "mestre" ? "block" : "hidden"}>
+                <FerramentasDoMestre roomId={roomId} />
+              </div>
+            )}
           </div>
         </aside>
       </div>
