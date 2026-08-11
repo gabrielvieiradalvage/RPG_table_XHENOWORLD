@@ -99,12 +99,48 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
   const [isNpcThinking, setIsNpcThinking] = useState(false);
   const [activeIaNpc, setActiveIaNpc] = useState<MapToken | null>(null);
 
-  // Ref para acessar o canal de Realtime do Chat
   const chatChannelRef = useRef<any>(null);
 
   useEffect(() => {
     initRoom();
   }, []);
+
+  // CANAL EM TEMPO REAL DE ALTERAÇÕES NO BANCO (CHARACTERS & ROOMS)
+  useEffect(() => {
+    if (!roomId) return;
+
+    const realtimeChannel = supabase
+      .channel(`room_db_realtime_${roomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "characters",
+          filter: `room_id=eq.${roomId}`,
+        },
+        () => {
+          fetchMapTokens();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "rooms",
+          filter: `id=eq.${roomId}`,
+        },
+        () => {
+          fetchRoomSettings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(realtimeChannel);
+    };
+  }, [roomId]);
 
   // CANAL EM TEMPO REAL DO CHAT
   useEffect(() => {
@@ -171,15 +207,6 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       audioRef.current.pause();
     }
   }, [currentAudio, isPlaying]);
-
-  useEffect(() => {
-    if (!roomId) return;
-    const interval = setInterval(() => {
-      fetchMapTokens();
-      fetchRoomSettings();
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [roomId]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -571,7 +598,9 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
       <ConvidarAmigos roomId={roomId} isOpen={isInviteOpen} onClose={() => setIsInviteOpen(false)} />
       
       {/* COMPONENTE FLUTUANTE DA BOLSA DE ITENS */}
-      {currentUser?.id && <BolsaItens roomId={roomId} currentUserId={currentUser.id} />}
+      {currentUser?.id && (
+        <BolsaItens roomId={roomId} currentUserId={currentUser.id} onSendMessage={handleSendMessage} />
+      )}
 
       {/* HEADER DA MESA */}
       <header className="h-12 sm:h-14 bg-[#12131f]/90 border-b border-purple-900/40 px-3 sm:px-4 flex items-center justify-between z-20 shrink-0">
