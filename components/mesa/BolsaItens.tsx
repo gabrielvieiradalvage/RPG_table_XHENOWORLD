@@ -47,7 +47,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
   // Estados de Movimentação Touch / Mouse do Ícone Flutuante
-  const [position, setPosition] = useState({ x: 20, y: 120 });
+  const [position, setPosition] = useState({ x: 16, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const initialPosRef = useRef({ x: 0, y: 0 });
@@ -99,7 +99,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
       .eq("id", character.id);
   };
 
-  // --- LÓGICA DE ARRASTAR BOTÃO FLUTUANTE (MOUSE + TOUCH) ---
+  // --- LÓGICA ROBUSTA DE ARRASTAR BOTÃO FLUTUANTE (MOUSE + TOUCH) ---
   const handleStartDrag = (clientX: number, clientY: number) => {
     setIsDragging(true);
     hasDraggedRef.current = false;
@@ -112,12 +112,16 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     const deltaX = clientX - dragStartRef.current.x;
     const deltaY = clientY - dragStartRef.current.y;
 
-    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+    // Tolerância de 12px para diferenciar toques de arrastos em telas touch
+    if (Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12) {
       hasDraggedRef.current = true;
     }
 
-    const newX = Math.max(10, Math.min(window.innerWidth - 60, initialPosRef.current.x + deltaX));
-    const newY = Math.max(10, Math.min(window.innerHeight - 60, initialPosRef.current.y + deltaY));
+    const maxX = typeof window !== "undefined" ? window.innerWidth - 60 : 300;
+    const maxY = typeof window !== "undefined" ? window.innerHeight - 60 : 500;
+
+    const newX = Math.max(10, Math.min(maxX, initialPosRef.current.x + deltaX));
+    const newY = Math.max(10, Math.min(maxY, initialPosRef.current.y + deltaY));
 
     setPosition({ x: newX, y: newY });
   };
@@ -145,32 +149,37 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     handleStartDrag(touch.clientX, touch.clientY);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    handleMoveDrag(touch.clientX, touch.clientY);
-  };
-
-  const handleTouchEnd = () => {
-    handleEndDrag();
-  };
-
+  // OUVINTES GLOBAIS DE JANELA PARA MOUSE E TOUCH NO MOBILE
   useEffect(() => {
+    const onWindowTouchMove = (e: TouchEvent) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      handleMoveDrag(touch.clientX, touch.clientY);
+    };
+
+    const onWindowTouchEnd = () => {
+      if (isDragging) handleEndDrag();
+    };
+
     if (isDragging) {
       window.addEventListener("mousemove", handleMouseMove);
       window.addEventListener("mouseup", handleMouseUp);
-    } else {
-      window.removeEventListener("mousemove", handleMouseMove);
-      window.removeEventListener("mouseup", handleMouseUp);
+      window.addEventListener("touchmove", onWindowTouchMove, { passive: true });
+      window.addEventListener("touchend", onWindowTouchEnd);
     }
+
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("touchmove", onWindowTouchMove);
+      window.removeEventListener("touchend", onWindowTouchEnd);
     };
   }, [isDragging]);
 
-  const handleIconClick = () => {
+  const handleIconClick = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
     if (!hasDraggedRef.current) {
-      setIsOpen(!isOpen);
+      setIsOpen((prev) => !prev);
     }
   };
 
@@ -179,12 +188,10 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
     let newEquip = { ...equipment };
     let newInv = inventory.filter((i) => i.id !== itemToEquip.id);
 
-    // Se já houver algo no slot, devolve para o inventário
     if (newEquip[slot]) {
       newInv.push(newEquip[slot]!);
     }
 
-    // Regra Tática para Arma de Duas Mãos vs Mão Direita / Esquerda
     if (slot === "duasMaos") {
       if (newEquip.maoDireita) {
         newInv.push(newEquip.maoDireita);
@@ -271,10 +278,8 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
         style={{ left: `${position.x}px`, top: `${position.y}px` }}
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
         onClick={handleIconClick}
-        className="fixed z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-amber-800 via-amber-900 to-amber-950 border-2 border-amber-500 rounded-full shadow-[0_0_20px_rgba(180,83,9,0.5)] flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none hover:scale-105 transition-transform"
+        className="fixed z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-br from-amber-800 via-amber-900 to-amber-950 border-2 border-amber-500 rounded-full shadow-[0_0_20px_rgba(180,83,9,0.6)] flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none hover:scale-105 transition-transform"
       >
         <span className="text-2xl select-none">🎒</span>
         {inventory.length > 0 && (
@@ -286,7 +291,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
 
       {/* PAINEL / MODAL DE EQUIPAMENTOS & INVENTÁRIO */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-[#120d08] border-2 border-amber-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_0_30px_rgba(180,83,9,0.4)] text-white">
             
             {/* HEADER DA BOLSA */}
@@ -303,6 +308,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 className="w-8 h-8 bg-amber-950 hover:bg-amber-900 border border-amber-600 text-amber-300 rounded-full font-bold flex items-center justify-center text-sm cursor-pointer"
               >
@@ -322,7 +328,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                 {/* LAYOUT CIRCULAR TÁTICO */}
                 <div className="flex flex-col items-center gap-3 pt-2">
                   
-                  {/* CAPEÇA */}
+                  {/* CABEÇA */}
                   {renderSlotCircle("cabeca", "Cabeça", "🪖", "")}
 
                   {/* PEITO E BRAÇOS */}
@@ -357,6 +363,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                       Onde deseja equipar &quot;{selectedItem.name}&quot;?
                     </span>
                     <button
+                      type="button"
                       onClick={() => setSelectedItem(null)}
                       className="text-[10px] text-amber-400 font-bold underline"
                     >
@@ -378,6 +385,7 @@ export default function BolsaItens({ roomId, currentUserId }: BolsaItensProps) {
                     ).map((slotBtn) => (
                       <button
                         key={slotBtn.key}
+                        type="button"
                         onClick={() => handleEquipToSlot(slotBtn.key, selectedItem)}
                         className="px-2.5 py-1 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 text-black font-black text-[10px] rounded-lg transition cursor-pointer"
                       >
