@@ -79,7 +79,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
   const getHpMax = (r: number, v: number) => 20 + Math.floor((r + v) / 2);
   const getStaminaMax = (r: number) => 10 + r * 5;
 
-  // Helper Unificado para Disparar Dados e Alternar para o Chat no Mobile
   const triggerRoll = (sides: number, bonus?: number, label?: string) => {
     if (onRollDice) {
       onRollDice(sides, bonus, label);
@@ -96,13 +95,24 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   const fetchCharacters = async () => {
     setLoading(true);
-    let query = supabase.from("characters").select("*").eq("room_id", roomId);
-    if (!isMestre) query = query.eq("user_id", userId).eq("is_npc", false);
+    const { data } = await supabase
+      .from("characters")
+      .select("*")
+      .eq("room_id", roomId)
+      .order("created_at", { ascending: true });
 
-    const { data } = await query;
     if (data && data.length > 0) {
-      setCharacters(data as Character[]);
-      setActiveChar(data[0] as Character);
+      const charList = data as Character[];
+      setCharacters(charList);
+
+      // Prioriza a ficha vinculada ao próprio jogador, caso exista
+      const myChar = charList.find((c) => c.user_id === userId && !c.is_npc);
+      setActiveChar((prev) => {
+        if (prev) {
+          return charList.find((c) => c.id === prev.id) || charList[0];
+        }
+        return myChar || charList[0];
+      });
     } else {
       setCharacters([]);
       setActiveChar(null);
@@ -565,28 +575,41 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   return (
     <div className="space-y-3 text-xs text-white w-full max-w-full">
-      {/* SELETOR DE PERSONAGEM */}
+      {/* SELETOR UNIFICADO DE PERSONAGEM (DISPONÍVEL PARA JOGADORES E MESTRE) */}
       <div className="flex items-center gap-1.5 pb-2 border-b border-purple-900/40">
-        {isMestre && characters.length > 0 && (
+        {characters.length > 0 && (
           <select
             value={activeChar?.id || ""}
             onChange={(e) => {
-              setActiveChar(characters.find((c) => c.id === e.target.value) || null);
+              const selected = characters.find((c) => c.id === e.target.value) || null;
+              setActiveChar(selected);
               setIsEditing(false);
             }}
-            className="flex-1 bg-[#0b0c16] border border-purple-800/40 text-white rounded-lg p-2 text-xs focus:outline-none min-w-0"
+            className="flex-1 bg-[#0b0c16] border border-purple-800/40 text-white rounded-lg p-2 text-xs focus:outline-none focus:border-cyan-400 min-w-0"
           >
-            {characters.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.is_npc ? "👹 NPC: " : "🛡️ "} {c.name}
-              </option>
-            ))}
+            <optgroup label="🛡️ Personagens de Jogadores">
+              {characters.filter((c) => !c.is_npc).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.user_id === userId ? "⭐ (Meu) " : "🛡️ "} {c.name} (LV {c.level || 1})
+                </option>
+              ))}
+            </optgroup>
+            {characters.some((c) => c.is_npc) && (
+              <optgroup label="👹 NPCs / Monstros">
+                {characters.filter((c) => c.is_npc).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    👹 {c.name} (LV {c.level || 1})
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         )}
 
         <button
           onClick={() => { setIsCreating(true); setIsEditing(false); }}
           className="px-2.5 py-2 bg-purple-600 active:bg-cyan-600 font-bold rounded-lg transition text-xs cursor-pointer shrink-0"
+          title="Criar Nova Ficha"
         >
           + Novo
         </button>
@@ -601,12 +624,14 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                 setIsEditing(true);
               }}
               className="px-2.5 py-2 bg-cyan-950/80 active:bg-cyan-700 text-cyan-300 border border-cyan-800/50 rounded-lg transition text-xs cursor-pointer shrink-0"
+              title="Editar Personagem / Habilidades"
             >
               ✏️
             </button>
             <button
               onClick={handleDeleteCharacter}
               className="px-2.5 py-2 bg-red-950/80 active:bg-red-700 text-red-300 border border-red-800/50 rounded-lg transition text-xs cursor-pointer shrink-0"
+              title="Apagar Ficha"
             >
               🗑️
             </button>
