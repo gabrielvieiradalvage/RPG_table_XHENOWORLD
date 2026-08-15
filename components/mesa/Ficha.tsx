@@ -79,6 +79,15 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
   const getHpMax = (r: number, v: number) => 20 + Math.floor((r + v) / 2);
   const getStaminaMax = (r: number) => 10 + r * 5;
 
+  // Classificação de Ranks e Dados de Bônus
+  const getAttributeRankAndBonus = (val: number) => {
+    if (val >= 80) return { rank: "S", bonusDie: 10, badgeClass: "bg-amber-950 text-amber-300 border-amber-500" };
+    if (val >= 60) return { rank: "A", bonusDie: 8, badgeClass: "bg-rose-950 text-rose-300 border-rose-500" };
+    if (val >= 40) return { rank: "B", bonusDie: 6, badgeClass: "bg-purple-950 text-purple-300 border-purple-500" };
+    if (val >= 30) return { rank: "C", bonusDie: 4, badgeClass: "bg-cyan-950 text-cyan-300 border-cyan-500" };
+    return { rank: "D", bonusDie: 2, badgeClass: "bg-zinc-900 text-zinc-300 border-zinc-700" };
+  };
+
   const triggerRoll = (sides: number, bonus?: number, label?: string) => {
     if (onRollDice) {
       onRollDice(sides, bonus, label);
@@ -105,7 +114,6 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
       const charList = data as Character[];
       setCharacters(charList);
 
-      // Prioriza a ficha vinculada ao próprio jogador, caso exista
       const myChar = charList.find((c) => c.user_id === userId && !c.is_npc);
       setActiveChar((prev) => {
         if (prev) {
@@ -204,6 +212,22 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
       .eq("id", activeChar.id);
 
     triggerRoll(0, 0, `🎲 Iniciativa de ${activeChar.name}: [ ${rollResult} ] (d${sides})`);
+  };
+
+  // ROLAGEM DE ATRIBUTO COM RANK E DADO DE BÔNUS ESCALONADO (d20 + dX)
+  const handleRollAttributeCheck = (attrLabel: string, val: number) => {
+    if (!activeChar) return;
+    const { rank, bonusDie } = getAttributeRankAndBonus(val);
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const bonusRoll = Math.floor(Math.random() * bonusDie) + 1;
+    const total = d20 + bonusRoll;
+
+    let critText = "";
+    if (d20 === 20) critText = " 🔥 CRÍTICO!";
+    if (d20 === 1) critText = " 💀 FALHA CRÍTICA!";
+
+    const log = `🎲 Teste de ${attrLabel} [Rank ${rank}] de ${activeChar.name}: d20 [ ${d20} ] + d${bonusDie} [ ${bonusRoll} ] = ${total}${critText}`;
+    triggerRoll(0, 0, log);
   };
 
   const handleIncreaseAttribute = (attrKey: keyof Character["attributes"]) => {
@@ -407,15 +431,23 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
     return logText;
   };
 
+  // SOCO BÁSICO: CAUSA DANO E RECUPERA +1 DE STAMINA
   const handleSocoBasico = async () => {
-    const damage = Math.floor(Math.random() * 6) + 1;
-    let targetText = "";
+    if (!activeChar) return;
 
+    const damage = Math.floor(Math.random() * 6) + 1;
+    const maxStam = activeChar.max_stamina || 10;
+    const newStamina = Math.min(maxStam, activeChar.current_stamina + 1);
+
+    const updated = { ...activeChar, current_stamina: newStamina };
+    await updateCharacterData(updated, { current_stamina: newStamina });
+
+    let targetText = "";
     if (selectedTargetId) {
       targetText = await applyDamageToTarget(selectedTargetId, damage);
     }
 
-    triggerRoll(0, 0, `👊 Soco Básico (0 ⭐): 🎲 [ ${damage} ]${targetText}`);
+    triggerRoll(0, 0, `👊 Soco Básico (0 ⭐): 🎲 [ ${damage} ]${targetText} | (+1⚡ Stamina: ${newStamina}/${maxStam})`);
   };
 
   // PROCESSAMENTO AUTOMATIZADO DE HABILIDADES
@@ -575,7 +607,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
 
   return (
     <div className="space-y-3 text-xs text-white w-full max-w-full">
-      {/* SELETOR UNIFICADO DE PERSONAGEM (DISPONÍVEL PARA JOGADORES E MESTRE) */}
+      {/* SELETOR UNIFICADO DE PERSONAGEM */}
       <div className="flex items-center gap-1.5 pb-2 border-b border-purple-900/40">
         {characters.length > 0 && (
           <select
@@ -850,7 +882,7 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                 </div>
                 <div className="grid grid-cols-2 gap-1.5 pt-1">
                   <button onClick={handleSocoBasico} className="py-2 bg-purple-900/60 active:bg-cyan-600 text-[10px] font-bold text-white rounded-lg transition cursor-pointer">
-                    👊 Soco (0 ⭐) [d6]
+                    👊 Soco (+1⚡) [d6]
                   </button>
                   <button onClick={handleDescansar} className="py-2 bg-amber-950 active:bg-amber-800 text-[10px] font-bold text-amber-200 rounded-lg transition cursor-pointer">
                     💤 Descansar (+3⭐/+d10⚡)
@@ -885,10 +917,10 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
               </div>
             )}
 
-            {/* ATRIBUTOS EXCLUSIVAMENTE COM PONTOS LIVRES DO D6 */}
+            {/* ATRIBUTOS COM SISTEMA DE RANKS (D, C, B, A, S) E DADO DE BÔNUS ESCALONADO */}
             <div className="space-y-1.5 pt-2 border-t border-purple-900/40">
               <div className="flex justify-between items-center flex-wrap gap-1">
-                <span className="block text-[10px] font-bold uppercase text-purple-300">Atributos</span>
+                <span className="block text-[10px] font-bold uppercase text-purple-300">Atributos & Ranks</span>
                 <div className="flex items-center gap-2 text-[9px]">
                   <span className={`px-2 py-0.5 rounded font-bold ${
                     freeAttributePoints > 0
@@ -911,11 +943,19 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                   { key: "intelecto", label: "Intelecto" },
                 ].map((attr) => {
                   const val = Number((activeChar.attributes as any)[attr.key]) || 0;
+                  const { rank, bonusDie, badgeClass } = getAttributeRankAndBonus(val);
 
                   return (
                     <div key={attr.key} className="bg-[#0b0c16] p-2 rounded-lg border border-purple-900/40 space-y-1">
                       <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-bold text-gray-300">{attr.label}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-gray-300">{attr.label}</span>
+                          {attr.key !== "iniciativa" && (
+                            <span className={`text-[8px] font-extrabold px-1.5 py-0.2 rounded border uppercase font-mono ${badgeClass}`}>
+                              Rank {rank}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[8px] text-amber-400 font-mono font-bold">
                           (1 Pt)
                         </span>
@@ -929,12 +969,16 @@ export default function Ficha({ roomId, userId, isMestre, onRollDice, onOpenChat
                         </div>
 
                         {attr.key === "iniciativa" ? (
-                          <button onClick={handleRollIniciativa} className="px-2 py-1 bg-cyan-950 border border-cyan-700 text-[9px] font-bold text-cyan-300 rounded cursor-pointer shrink-0" title="Rolar Iniciativa">
+                          <button onClick={handleRollIniciativa} className="px-2 py-1 bg-cyan-950 border border-cyan-700 text-[9px] font-bold text-cyan-300 rounded cursor-pointer shrink-0" title="Rolar Iniciativa da Rodada">
                             🎲 d{6 + val}
                           </button>
                         ) : (
-                          <button onClick={() => triggerRoll(20, val, attr.label)} className="px-2 py-1 bg-purple-950 border border-purple-800 text-[9px] font-bold text-purple-200 rounded cursor-pointer shrink-0">
-                            🎲 d20
+                          <button
+                            onClick={() => handleRollAttributeCheck(attr.label, val)}
+                            className="px-2 py-1 bg-purple-950 hover:bg-purple-900 active:bg-cyan-700 border border-purple-700 text-[9px] font-bold text-purple-200 hover:text-white rounded cursor-pointer shrink-0 transition"
+                            title={`Rolar d20 + d${bonusDie} (Rank ${rank})`}
+                          >
+                            🎲 d20+d{bonusDie}
                           </button>
                         )}
                       </div>
