@@ -23,6 +23,15 @@ export interface ShopItem {
   image_url?: string | null;
 }
 
+interface CharacterOption {
+  id: string;
+  name: string;
+  user_id: string;
+  is_npc: boolean;
+  moedas?: number;
+  inventory?: any[];
+}
+
 interface LojaProps {
   roomId: string;
   isMestre: boolean;
@@ -39,10 +48,11 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
   // Filtro de Categoria
   const [categoryFilter, setCategoryFilter] = useState<"todos" | "equipavel" | "cura" | "suporte">("todos");
 
-  // Dados do Personagem do Jogador Atual
-  const [myCharacter, setMyCharacter] = useState<any>(null);
+  // Lista de Personagens e Personagem Selecionado para Compra
+  const [characters, setCharacters] = useState<CharacterOption[]>([]);
+  const [selectedCharId, setSelectedCharId] = useState<string>("");
 
-  // Modais de Criação
+  // Modais de Criação (Mestre)
   const [isCreatingShop, setIsCreatingShop] = useState(false);
   const [newShopName, setNewShopName] = useState("");
   const [newShopDesc, setNewShopDesc] = useState("");
@@ -59,7 +69,7 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
 
   useEffect(() => {
     fetchShops();
-    fetchMyCharacter();
+    fetchRoomCharacters();
   }, [roomId, currentUserId]);
 
   useEffect(() => {
@@ -94,20 +104,30 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
     }
   };
 
-  const fetchMyCharacter = async () => {
-    if (!currentUserId) return;
-    const { data } = await supabase
+  const fetchRoomCharacters = async () => {
+    const { data, error } = await supabase
       .from("characters")
-      .select("*")
+      .select("id, name, user_id, is_npc, moedas, inventory")
       .eq("room_id", roomId)
-      .eq("user_id", currentUserId)
-      .eq("is_npc", false)
-      .maybeSingle();
+      .order("created_at", { ascending: true });
 
-    if (data) {
-      setMyCharacter(data);
+    if (!error && data && data.length > 0) {
+      const charList = data as CharacterOption[];
+      setCharacters(charList);
+
+      // Prioriza a ficha do usuário autenticado se houver
+      const myChar = charList.find((c) => c.user_id === currentUserId && !c.is_npc);
+      setSelectedCharId((prev) => {
+        if (prev && charList.some((c) => c.id === prev)) return prev;
+        return myChar ? myChar.id : charList[0].id;
+      });
+    } else {
+      setCharacters([]);
+      setSelectedCharId("");
     }
   };
+
+  const activeCharacter = characters.find((c) => c.id === selectedCharId) || null;
 
   // UPLOAD DE IMAGEM DO ITEM
   const handleItemImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,21 +229,21 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
     }
   };
 
-  // COMPRAR ITEM (JOGADOR)
+  // COMPRAR ITEM (JOGADOR OU MESTRE)
   const handleBuyItem = async (item: ShopItem) => {
-    if (!myCharacter) {
-      alert("Você precisa ter um personagem nesta mesa para comprar itens!");
+    if (!activeCharacter) {
+      alert("Selecione um personagem na barra superior para realizar a compra!");
       return;
     }
 
-    const currentCoins = myCharacter.moedas ?? 0;
+    const currentCoins = activeCharacter.moedas ?? 0;
     if (currentCoins < item.price) {
-      alert(`Moedas insuficientes! Você tem 🪙 ${currentCoins} e o item custa 🪙 ${item.price}.`);
+      alert(`Moedas insuficientes! ${activeCharacter.name} possui 🪙 ${currentCoins} e o item custa 🪙 ${item.price}.`);
       return;
     }
 
     const newCoins = currentCoins - item.price;
-    const currentInventory = Array.isArray(myCharacter.inventory) ? myCharacter.inventory : [];
+    const currentInventory = Array.isArray(activeCharacter.inventory) ? activeCharacter.inventory : [];
     const updatedInventory = [
       ...currentInventory,
       {
@@ -243,16 +263,23 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
         moedas: newCoins,
         inventory: updatedInventory,
       })
-      .eq("id", myCharacter.id);
+      .eq("id", activeCharacter.id);
 
     if (error) {
       alert("Erro na transação: " + error.message);
     } else {
-      setMyCharacter((prev: any) => ({ ...prev, moedas: newCoins, inventory: updatedInventory }));
-      alert(`🛒 Compra realizada! "${item.name}" foi adicionado à mochila de ${myCharacter.name}.`);
+      setCharacters((prev) =>
+        prev.map((c) =>
+          c.id === activeCharacter.id
+            ? { ...c, moedas: newCoins, inventory: updatedInventory }
+            : c
+        )
+      );
+
+      alert(`🛒 Compra realizada! "${item.name}" foi adicionado à mochila de ${activeCharacter.name}.`);
 
       if (onSendMessage) {
-        onSendMessage(`🛒 ${myCharacter.name} comprou "${item.name}" por 🪙 ${item.price} moedas na loja ${activeShop?.name}.`);
+        onSendMessage(`🛒 ${activeCharacter.name} comprou "${item.name}" por 🪙 ${item.price} moedas na loja ${activeShop?.name || "Mercado"}.`);
       }
     }
   };
@@ -279,21 +306,51 @@ export default function Loja({ roomId, isMestre, currentUserId, onSendMessage }:
 
   return (
     <div className="space-y-3.5 text-xs text-white w-full max-w-full">
-      {/* BARRA DE MOEDAS DO JOGADOR */}
-      {myCharacter && (
-        <div className="p-2.5 bg-[#0b0c16] border border-amber-500/40 rounded-xl flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-base">🎒</span>
-            <div>
-              <span className="block text-[10px] text-gray-400 font-bold uppercase">{myCharacter.name}</span>
-              <span className="text-xs font-black text-amber-400 font-mono">🪙 {myCharacter.moedas ?? 0} Moedas</span>
-            </div>
+      {/* SELETOR E CARTEIRA DO PERSONAGEM ATIVO NA LOJA */}
+      <div className="p-2.5 bg-[#0b0c16] border border-amber-500/40 rounded-xl space-y-2 shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-base shrink-0">🎒</span>
+            <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider truncate">
+              Comprando com:
+            </label>
           </div>
-          <span className="text-[10px] bg-amber-950/60 text-amber-300 border border-amber-800/40 px-2 py-0.5 rounded-full font-bold">
-            {myCharacter.inventory?.length || 0} itens na bolsa
-          </span>
+          {activeCharacter && (
+            <span className="text-xs font-black text-amber-400 font-mono shrink-0">
+              🪙 {activeCharacter.moedas ?? 0} Moedas
+            </span>
+          )}
         </div>
-      )}
+
+        {characters.length > 0 ? (
+          <select
+            value={selectedCharId}
+            onChange={(e) => setSelectedCharId(e.target.value)}
+            className="w-full bg-[#12131f] border border-amber-800/40 text-white rounded-lg p-2 text-xs focus:outline-none focus:border-amber-400"
+          >
+            <optgroup label="🛡️ Personagens">
+              {characters.filter((c) => !c.is_npc).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.user_id === currentUserId ? "⭐ (Meu) " : "🛡️ "} {c.name} (🪙 {c.moedas ?? 0} Moedas)
+                </option>
+              ))}
+            </optgroup>
+            {characters.some((c) => c.is_npc) && (
+              <optgroup label="👹 NPCs / Criaturas">
+                {characters.filter((c) => c.is_npc).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    👹 {c.name} (🪙 {c.moedas ?? 0} Moedas)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        ) : (
+          <p className="text-[10px] text-amber-300/80">
+            Nenhum personagem encontrado nesta mesa. Crie uma ficha na aba <strong>Ficha</strong> para poder comprar.
+          </p>
+        )}
+      </div>
 
       {/* VISÃO 1: LISTA DE LOJAS DA SALA */}
       {!activeShop ? (
