@@ -43,12 +43,14 @@ interface BolsaItensProps {
 
 export default function BolsaItens({ roomId, currentUserId, onSendMessage }: BolsaItensProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [characters, setCharacters] = useState<any[]>([]);
+  const [selectedCharId, setSelectedCharId] = useState<string>("");
   const [character, setCharacter] = useState<any>(null);
   const [equipment, setEquipment] = useState<EquipmentSlots>({});
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
-  // Posição e controle de Drag sem vazamento de escopo via useRef
+  // Posição e controle de Drag sem vazamento de escopo
   const [position, setPosition] = useState({ x: 16, y: 100 });
   const posRef = useRef(position);
   posRef.current = position;
@@ -62,21 +64,69 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
     fetchCharacterData();
   }, [roomId, currentUserId]);
 
-  const fetchCharacterData = async () => {
-    if (!currentUserId || !roomId) return;
+  // Sincronização em tempo real das alterações do inventário
+  useEffect(() => {
+    if (!roomId) return;
 
-    const { data } = await supabase
+    const channel = supabase
+      .channel(`bolsa_realtime_${roomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "characters",
+          filter: `room_id=eq.${roomId}`,
+        },
+        () => {
+          fetchCharacterData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomId, selectedCharId]);
+
+  const fetchCharacterData = async () => {
+    if (!roomId) return;
+
+    const { data, error } = await supabase
       .from("characters")
       .select("*")
       .eq("room_id", roomId)
-      .eq("user_id", currentUserId)
-      .eq("is_npc", false)
-      .maybeSingle();
+      .order("created_at", { ascending: true });
 
-    if (data) {
-      setCharacter(data);
-      setInventory(Array.isArray(data.inventory) ? data.inventory : []);
-      setEquipment(data.attributes?.equipment || {});
+    if (!error && data && data.length > 0) {
+      setCharacters(data);
+
+      let targetChar = null;
+      if (selectedCharId) {
+        targetChar = data.find((c) => c.id === selectedCharId);
+      }
+
+      if (!targetChar) {
+        const myChar = data.find((c) => c.user_id === currentUserId && !c.is_npc);
+        targetChar = myChar || data[0];
+      }
+
+      if (targetChar) {
+        setSelectedCharId(targetChar.id);
+        setCharacter(targetChar);
+        setInventory(Array.isArray(targetChar.inventory) ? targetChar.inventory : []);
+        setEquipment(targetChar.attributes?.equipment || {});
+      }
+    }
+  };
+
+  const handleSelectCharacter = (charId: string) => {
+    setSelectedCharId(charId);
+    const char = characters.find((c) => c.id === charId);
+    if (char) {
+      setCharacter(char);
+      setInventory(Array.isArray(char.inventory) ? char.inventory : []);
+      setEquipment(char.attributes?.equipment || {});
     }
   };
 
@@ -103,7 +153,7 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
       .eq("id", character.id);
   };
 
-  // --- ARRASTO ROBUSTO E SEM VAZAMENTO DE LISTENERS (PC & MOBILE) ---
+  // --- ARRASTO ROBUSTO (PC & MOBILE) ---
   const handleStartDrag = (clientX: number, clientY: number) => {
     isDraggingRef.current = true;
     hasDraggedRef.current = false;
@@ -145,7 +195,6 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
     }
   };
 
-  // Ouvintes de evento estáticos anexados uma única vez ao window
   useEffect(() => {
     const handlePointerMove = (e: MouseEvent) => {
       if (isDraggingRef.current) {
@@ -233,7 +282,7 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
     await saveEquipmentAndInventory(newEquip, newInv);
   };
 
-  // --- USAR ITEM CONSUMÍVEL (CURA OU SUPORTE) ---
+  // --- USAR ITEM CONSUMÍVEL ---
   const handleUseConsumableItem = async (itemToUse: InventoryItem) => {
     if (!character) return;
 
@@ -323,8 +372,6 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
     );
   };
 
-  if (!character) return null;
-
   return (
     <>
       {/* BOTÃO FLUTUANTE MARROM (BOLSA DE ITENS) */}
@@ -348,23 +395,50 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
           <div className="bg-[#120d08] border-2 border-amber-700/80 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-[0_0_30px_rgba(180,83,9,0.4)] text-white">
             
-            {/* HEADER DA BOLSA */}
+            {/* HEADER DA BOLSA COM SELETOR DE PERSONAGEM */}
             <div className="p-3 sm:p-4 bg-[#1f130b] border-b border-amber-800/60 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🎒</span>
-                <div>
-                  <h3 className="font-extrabold text-amber-300 text-sm sm:text-base uppercase tracking-wider">
-                    Equipamentos de {character.name}
-                  </h3>
-                  <p className="text-[10px] text-amber-200/60">
+              <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+                <span className="text-2xl shrink-0">🎒</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-amber-300 text-sm sm:text-base uppercase tracking-wider truncate">
+                      Mochila:
+                    </h3>
+                    {characters.length > 0 && (
+                      <select
+                        value={selectedCharId}
+                        onChange={(e) => handleSelectCharacter(e.target.value)}
+                        className="bg-[#0b0704] border border-amber-700/80 text-amber-200 rounded px-2 py-0.5 text-xs font-bold focus:outline-none truncate max-w-[160px] sm:max-w-[220px]"
+                      >
+                        <optgroup label="🛡️ Personagens">
+                          {characters.filter((c) => !c.is_npc).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.user_id === currentUserId ? "⭐ (Meu) " : "🛡️ "} {c.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {characters.some((c) => c.is_npc) && (
+                          <optgroup label="👹 NPCs / Criaturas">
+                            {characters.filter((c) => c.is_npc).map((c) => (
+                              <option key={c.id} value={c.id}>
+                                👹 {c.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-amber-200/60 truncate">
                     Gerencie suas armaduras, armas e consumíveis adquiridos nas lojas.
                   </p>
                 </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="w-8 h-8 bg-amber-950 hover:bg-amber-900 border border-amber-600 text-amber-300 rounded-full font-bold flex items-center justify-center text-sm cursor-pointer"
+                className="w-8 h-8 bg-amber-950 hover:bg-amber-900 border border-amber-600 text-amber-300 rounded-full font-bold flex items-center justify-center text-sm cursor-pointer shrink-0"
               >
                 ✕
               </button>
@@ -372,155 +446,162 @@ export default function BolsaItens({ roomId, currentUserId, onSendMessage }: Bol
 
             {/* CORPO DO PAINEL */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-6">
-              
-              {/* DISPOSIÇÃO DE SLOTS CIRCULARES DE ARMADURA E ARMAS */}
-              <div className="bg-[#0b0704] border border-amber-900/60 p-4 rounded-2xl space-y-3 relative">
-                <span className="block text-center text-[10px] font-black uppercase text-amber-400 tracking-widest pb-1 border-b border-amber-900/40">
-                  🛡️ Corpo & Slots de Equipamento
-                </span>
-
-                <div className="flex flex-col items-center gap-3 pt-2">
-                  {renderSlotCircle("cabeca", "Cabeça", "🪖", "")}
-
-                  <div className="flex items-center justify-center gap-4 sm:gap-8">
-                    {renderSlotCircle("bracos", "Braços", "🥊", "")}
-                    {renderSlotCircle("peito", "Peito", "🛡️", "")}
-                    {renderSlotCircle("cintura", "Cintura", "🥋", "")}
-                  </div>
-
-                  {renderSlotCircle("pernas", "Pernas", "🦵", "")}
-
-                  <div className="w-full pt-3 border-t border-amber-900/40 space-y-2">
-                    <span className="block text-center text-[9px] font-bold text-amber-300/80 uppercase">
-                      ⚔️ Mãos & Armas
+              {!character ? (
+                <div className="p-6 text-center text-xs text-amber-300/80 bg-[#0b0704] rounded-xl border border-dashed border-amber-900/40">
+                  Nenhum personagem selecionado ou criado nesta mesa. Crie uma ficha na aba <strong>Ficha</strong>.
+                </div>
+              ) : (
+                <>
+                  {/* DISPOSIÇÃO DE SLOTS CIRCULARES DE ARMADURA E ARMAS */}
+                  <div className="bg-[#0b0704] border border-amber-900/60 p-4 rounded-2xl space-y-3 relative">
+                    <span className="block text-center text-[10px] font-black uppercase text-amber-400 tracking-widest pb-1 border-b border-amber-900/40">
+                      🛡️ Corpo & Slots de Equipamento
                     </span>
-                    <div className="flex items-center justify-around gap-2">
-                      {renderSlotCircle("maoEsquerda", "Mão Esq. (Leve)", "🛡️", "")}
-                      {renderSlotCircle("duasMaos", "2 Mãos (Pesada)", "🪓", "scale-110")}
-                      {renderSlotCircle("maoDireita", "Mão Dir. (Leve)", "🗡️", "")}
+
+                    <div className="flex flex-col items-center gap-3 pt-2">
+                      {renderSlotCircle("cabeca", "Cabeça", "🪖", "")}
+
+                      <div className="flex items-center justify-center gap-4 sm:gap-8">
+                        {renderSlotCircle("bracos", "Braços", "🥊", "")}
+                        {renderSlotCircle("peito", "Peito", "🛡️", "")}
+                        {renderSlotCircle("cintura", "Cintura", "🥋", "")}
+                      </div>
+
+                      {renderSlotCircle("pernas", "Pernas", "🦵", "")}
+
+                      <div className="w-full pt-3 border-t border-amber-900/40 space-y-2">
+                        <span className="block text-center text-[9px] font-bold text-amber-300/80 uppercase">
+                          ⚔️ Mãos & Armas
+                        </span>
+                        <div className="flex items-center justify-around gap-2">
+                          {renderSlotCircle("maoEsquerda", "Mão Esq. (Leve)", "🛡️", "")}
+                          {renderSlotCircle("duasMaos", "2 Mãos (Pesada)", "🪓", "scale-110")}
+                          {renderSlotCircle("maoDireita", "Mão Dir. (Leve)", "🗡️", "")}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* SELEÇÃO DE SLOT PARA ITEM EQUIPÁVEL */}
-              {selectedItem && selectedItem.category === "equipavel" && (
-                <div className="p-3 bg-amber-950/90 border border-amber-500 rounded-xl space-y-2 shadow-lg animate-pulse">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-amber-300">
-                      Onde deseja equipar &quot;{selectedItem.name}&quot;?
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedItem(null)}
-                      className="text-[10px] text-amber-400 font-bold underline"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {(
-                      [
-                        { key: "cabeca", label: "🪖 Cabeça" },
-                        { key: "peito", label: "🛡️ Peito" },
-                        { key: "bracos", label: "🥊 Braços" },
-                        { key: "cintura", label: "🥋 Cintura" },
-                        { key: "pernas", label: "🦵 Pernas" },
-                        { key: "maoDireita", label: "🗡️ Mão Direita" },
-                        { key: "maoEsquerda", label: "🛡️ Mão Esquerda" },
-                        { key: "duasMaos", label: "🪓 Duas Mãos" },
-                      ] as const
-                    ).map((slotBtn) => (
-                      <button
-                        key={slotBtn.key}
-                        type="button"
-                        onClick={() => handleEquipToSlot(slotBtn.key, selectedItem)}
-                        className="px-2.5 py-1 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 text-black font-black text-[10px] rounded-lg transition cursor-pointer"
-                      >
-                        {slotBtn.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* SEÇÃO DE MOCHILA / ITENS COMPRADOS NAS LOJAS */}
-              <div className="space-y-2">
-                <span className="block text-xs font-bold text-amber-300 uppercase tracking-wider">
-                  📦 Bolsa de Itens Adquiridos ({inventory.length})
-                </span>
-
-                {inventory.length === 0 ? (
-                  <div className="p-4 bg-[#0b0704] border border-dashed border-amber-900/40 rounded-xl text-center">
-                    <p className="text-xs text-amber-200/50">
-                      Sua mochila está vazia. Adquira armas, armaduras e poções na aba <strong>Loja</strong>.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {inventory.map((item) => {
-                      const isEquipable = item.category === "equipavel";
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={`p-2.5 bg-[#0b0704] border rounded-xl flex items-center justify-between gap-2 transition ${
-                            selectedItem?.id === item.id
-                              ? "border-amber-400 bg-amber-950/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
-                              : "border-amber-900/40"
-                          }`}
+                  {/* SELEÇÃO DE SLOT PARA ITEM EQUIPÁVEL */}
+                  {selectedItem && selectedItem.category === "equipavel" && (
+                    <div className="p-3 bg-amber-950/90 border border-amber-500 rounded-xl space-y-2 shadow-lg animate-pulse">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-amber-300">
+                          Onde deseja equipar &quot;{selectedItem.name}&quot;?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedItem(null)}
+                          className="text-[10px] text-amber-400 font-bold underline"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {item.image_url ? (
-                              <img
-                                src={item.image_url}
-                                alt={item.name}
-                                className="w-9 h-9 object-cover rounded-lg border border-amber-700/50 shrink-0"
-                              />
-                            ) : (
-                              <div className="w-9 h-9 bg-amber-950 border border-amber-800 rounded-lg flex items-center justify-center text-sm shrink-0">
-                                {item.category === "cura" ? "🧪" : item.category === "suporte" ? "💣" : "⚔️"}
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <h5 className="font-extrabold text-amber-200 text-xs truncate">
-                                {item.name}
-                              </h5>
-                              <p className="text-[9px] text-amber-200/60 truncate font-mono">
-                                {item.category === "cura" && item.effect_value
-                                  ? `Restaura +${item.effect_value} HP`
-                                  : item.description || "Consumível"}
-                              </p>
-                            </div>
-                          </div>
+                          Cancelar
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {(
+                          [
+                            { key: "cabeca", label: "🪖 Cabeça" },
+                            { key: "peito", label: "🛡️ Peito" },
+                            { key: "bracos", label: "🥊 Braços" },
+                            { key: "cintura", label: "🥋 Cintura" },
+                            { key: "pernas", label: "🦵 Pernas" },
+                            { key: "maoDireita", label: "🗡️ Mão Direita" },
+                            { key: "maoEsquerda", label: "🛡️ Mão Esquerda" },
+                            { key: "duasMaos", label: "🪓 Duas Mãos" },
+                          ] as const
+                        ).map((slotBtn) => (
+                          <button
+                            key={slotBtn.key}
+                            type="button"
+                            onClick={() => handleEquipToSlot(slotBtn.key, selectedItem)}
+                            className="px-2.5 py-1 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 text-black font-black text-[10px] rounded-lg transition cursor-pointer"
+                          >
+                            {slotBtn.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                          {isEquipable ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
-                              className={`px-3 py-1.5 font-bold text-[10px] rounded-lg transition shrink-0 cursor-pointer ${
+                  {/* SEÇÃO DE MOCHILA / ITENS COMPRADOS */}
+                  <div className="space-y-2">
+                    <span className="block text-xs font-bold text-amber-300 uppercase tracking-wider">
+                      📦 Itens na Bolsa ({inventory.length})
+                    </span>
+
+                    {inventory.length === 0 ? (
+                      <div className="p-4 bg-[#0b0704] border border-dashed border-amber-900/40 rounded-xl text-center">
+                        <p className="text-xs text-amber-200/50">
+                          Sua mochila está vazia. Adquira armas, armaduras e poções na aba <strong>Loja</strong>.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {inventory.map((item) => {
+                          const isEquipable = item.category === "equipavel";
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`p-2.5 bg-[#0b0704] border rounded-xl flex items-center justify-between gap-2 transition ${
                                 selectedItem?.id === item.id
-                                  ? "bg-amber-400 text-black"
-                                  : "bg-amber-900/80 hover:bg-amber-800 text-amber-200 border border-amber-700/60"
+                                  ? "border-amber-400 bg-amber-950/40 shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+                                  : "border-amber-900/40"
                               }`}
                             >
-                              {selectedItem?.id === item.id ? "Selecionado" : "Equipar ➔"}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleUseConsumableItem(item)}
-                              className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 active:scale-95 text-white font-extrabold text-[10px] rounded-lg shadow transition shrink-0 cursor-pointer"
-                            >
-                              {item.category === "cura" ? "Usar 🧪" : "Usar 💣"}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {item.image_url ? (
+                                  <img
+                                    src={item.image_url}
+                                    alt={item.name}
+                                    className="w-9 h-9 object-cover rounded-lg border border-amber-700/50 shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 bg-amber-950 border border-amber-800 rounded-lg flex items-center justify-center text-sm shrink-0">
+                                    {item.category === "cura" ? "🧪" : item.category === "suporte" ? "💣" : "⚔️"}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <h5 className="font-extrabold text-amber-200 text-xs truncate">
+                                    {item.name}
+                                  </h5>
+                                  <p className="text-[9px] text-amber-200/60 truncate font-mono">
+                                    {item.category === "cura" && item.effect_value
+                                      ? `Restaura +${item.effect_value} HP`
+                                      : item.description || "Consumível"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {isEquipable ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedItem(selectedItem?.id === item.id ? null : item)}
+                                  className={`px-3 py-1.5 font-bold text-[10px] rounded-lg transition shrink-0 cursor-pointer ${
+                                    selectedItem?.id === item.id
+                                      ? "bg-amber-400 text-black"
+                                      : "bg-amber-900/80 hover:bg-amber-800 text-amber-200 border border-amber-700/60"
+                                  }`}
+                                >
+                                  {selectedItem?.id === item.id ? "Selecionado" : "Equipar ➔"}
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUseConsumableItem(item)}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 active:scale-95 text-white font-extrabold text-[10px] rounded-lg shadow transition shrink-0 cursor-pointer"
+                                >
+                                  {item.category === "cura" ? "Usar 🧪" : "Usar 💣"}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                </>
+              )}
             </div>
           </div>
         </div>
