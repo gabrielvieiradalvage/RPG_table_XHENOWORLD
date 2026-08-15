@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 
 interface CharacterItem {
@@ -51,8 +51,20 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
     y: 50,
   });
 
+  const stateChannelRef = useRef<any>(null);
+
   useEffect(() => {
     fetchRoomAndCharacters();
+
+    const channel = supabase.channel(`room_state_${roomId}`, {
+      config: { broadcast: { self: false } },
+    });
+    channel.subscribe();
+    stateChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [roomId]);
 
   const fetchRoomAndCharacters = async () => {
@@ -74,6 +86,47 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
       if (roomData.grid_type) setGridType(roomData.grid_type);
       if (roomData.combat_zone) setCombatZone(roomData.combat_zone);
     }
+  };
+
+  const broadcastRoomUpdate = (payload: {
+    game_mode?: "exploracao" | "combate";
+    grid_type?: "quadrado" | "hexagono" | "circulo" | "nenhum";
+    combat_zone?: CombatZone;
+  }) => {
+    if (stateChannelRef.current) {
+      stateChannelRef.current.send({
+        type: "broadcast",
+        event: "room_state_update",
+        payload,
+      });
+    }
+  };
+
+  const updateRoomSetting = async (field: string, value: any) => {
+    await supabase.from("rooms").update({ [field]: value }).eq("id", roomId);
+  };
+
+  const handleGameModeChange = (mode: "exploracao" | "combate") => {
+    setGameMode(mode);
+    broadcastRoomUpdate({ game_mode: mode, combat_zone: combatZone });
+    updateRoomSetting("game_mode", mode);
+  };
+
+  const handleGridChange = (grid: any) => {
+    setGridType(grid);
+    broadcastRoomUpdate({ grid_type: grid });
+    updateRoomSetting("grid_type", grid);
+  };
+
+  const handleZoneChangeLocal = (key: keyof CombatZone, val: any) => {
+    const updated = { ...combatZone, [key]: val };
+    setCombatZone(updated);
+    broadcastRoomUpdate({ combat_zone: updated });
+  };
+
+  const saveZoneToDatabase = () => {
+    broadcastRoomUpdate({ combat_zone: combatZone });
+    updateRoomSetting("combat_zone", combatZone);
   };
 
   const players = characters.filter((c) => !c.is_npc);
@@ -176,7 +229,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
     const targets = getTargetCharacters();
     if (targets.length === 0) return alert("Nenhum alvo encontrado.");
 
-    if (!confirm(`Zerar os escudos (Barreira) de ${targets.length} alvo(s)?`)) return;
+    if (!confirm(`Zerar as barreiras de ${targets.length} alvo(s)?`)) return;
 
     for (const char of targets) {
       const updatedAttrs = {
@@ -186,7 +239,7 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
       await supabase.from("characters").update({ attributes: updatedAttrs }).eq("id", char.id);
     }
     
-    alert(`🛡️ Escudos quebrados/zerados para ${targets.length} alvo(s)!`);
+    alert(`🛡️ Barreiras quebradas/zeradas para ${targets.length} alvo(s)!`);
     fetchRoomAndCharacters();
   };
 
@@ -195,28 +248,6 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
     await supabase.from("characters").update({ on_map: false }).eq("room_id", roomId);
     alert("Tokens removidos!");
     fetchRoomAndCharacters();
-  };
-
-  const updateRoomSetting = async (field: string, value: any) => {
-    await supabase.from("rooms").update({ [field]: value }).eq("id", roomId);
-  };
-
-  const handleGameModeChange = (mode: "exploracao" | "combate") => {
-    setGameMode(mode);
-    updateRoomSetting("game_mode", mode);
-  };
-
-  const handleGridChange = (grid: any) => {
-    setGridType(grid);
-    updateRoomSetting("grid_type", grid);
-  };
-
-  const handleZoneChangeLocal = (key: keyof CombatZone, val: any) => {
-    setCombatZone({ ...combatZone, [key]: val });
-  };
-
-  const saveZoneToDatabase = () => {
-    updateRoomSetting("combat_zone", combatZone);
   };
 
   return (
@@ -282,14 +313,14 @@ export default function FerramentasDoMestre({ roomId }: FerramentasDoMestreProps
           </div>
         </div>
 
-        {/* QUEBRAR ESCUDOS */}
+        {/* QUEBRAR BARREIRAS */}
         <div className="pt-2 border-t border-cyan-900/40 space-y-1.5">
-          <label className="block text-[9px] text-cyan-400 uppercase tracking-wider font-bold">🛡️ Gerenciamento de Escudos:</label>
+          <label className="block text-[9px] text-cyan-400 uppercase tracking-wider font-bold">🛡️ Gerenciamento de Barreiras:</label>
           <button 
             onClick={handleBreakShields} 
             className="w-full py-2 bg-gradient-to-r from-cyan-900 to-blue-900 hover:from-cyan-800 hover:to-blue-800 text-cyan-100 font-bold rounded-lg text-xs cursor-pointer shadow-md"
           >
-            Quebrar Escudos do(s) Alvo(s) Selecionado(s)
+            Quebrar Barreiras do(s) Alvo(s) Selecionado(s)
           </button>
         </div>
 
