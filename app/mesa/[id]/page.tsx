@@ -104,6 +104,27 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
     initRoom();
   }, []);
 
+  // CANAL EM TEMPO REAL DE BROADCAST DE ESTADO DA SALA (0ms DE LATÊNCIA)
+  useEffect(() => {
+    if (!roomId) return;
+
+    const stateChannel = supabase.channel(`room_state_${roomId}`, {
+      config: { broadcast: { self: false } },
+    });
+
+    stateChannel
+      .on("broadcast", { event: "room_state_update" }, ({ payload }: { payload: any }) => {
+        if (payload.game_mode) setGameMode(payload.game_mode);
+        if (payload.grid_type) setGridType(payload.grid_type);
+        if (payload.combat_zone) setCombatZone(payload.combat_zone);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(stateChannel);
+    };
+  }, [roomId]);
+
   // CANAL EM TEMPO REAL DE ALTERAÇÕES NO BANCO (CHARACTERS & ROOMS)
   useEffect(() => {
     if (!roomId) return;
