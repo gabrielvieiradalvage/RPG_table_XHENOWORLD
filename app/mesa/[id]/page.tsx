@@ -130,7 +130,12 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
           table: "rooms",
           filter: `id=eq.${roomId}`,
         },
-        () => {
+        (payload: any) => {
+          if (payload.new) {
+            if (payload.new.game_mode) setGameMode(payload.new.game_mode);
+            if (payload.new.grid_type) setGridType(payload.new.grid_type);
+            if (payload.new.combat_zone) setCombatZone(payload.new.combat_zone);
+          }
           fetchRoomSettings();
         }
       )
@@ -594,6 +599,11 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
               Mesa Virtual
             </h1>
             {isMestre && <span className="text-[9px] sm:text-[10px] bg-purple-950 text-purple-300 border border-purple-700 px-1.5 py-0.5 rounded-full font-bold uppercase">👑 MESTRE</span>}
+            {gameMode === "combate" && (
+              <span className="text-[9px] sm:text-[10px] bg-red-950 text-red-300 border border-red-500 px-2 py-0.5 rounded-full font-extrabold uppercase animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                ⚔️ COMBATE ATIVO
+              </span>
+            )}
           </div>
           <button onClick={() => setIsInviteOpen(true)} className="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-bold text-xs rounded-lg shadow-md transition cursor-pointer flex items-center gap-1">
             <span>📩</span>
@@ -604,7 +614,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
         <div className="flex items-center gap-2 bg-[#0b0c16] px-2.5 py-1 border border-purple-800/40 rounded-xl">
           <span className="text-xs text-purple-300 animate-pulse">🎵</span>
           <span className="text-[10px] sm:text-xs text-gray-300 font-medium max-w-[80px] sm:max-w-[140px] truncate">{currentAudio ? currentAudio.title : "Sem som"}</span>
-          {currentAudio && (
+          {currentAudio && isMestre && (
             <button onClick={togglePlayPause} className="text-[10px] sm:text-xs bg-purple-600 hover:bg-purple-500 text-white px-2 py-0.5 rounded font-bold cursor-pointer">
               {isPlaying ? "⏸" : "▶"}
             </button>
@@ -825,10 +835,10 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
             <button onClick={() => setMobileView("mapa")} className="text-gray-400 hover:text-white font-bold text-sm px-2 cursor-pointer">✕ Voltar ao Mapa</button>
           </div>
 
-          {/* BARRA DE ABAS */}
+          {/* BARRA DE ABAS (ÁUDIO DISPONÍVEL PARA TODOS OS JOGADORES) */}
           <div className="flex border-b border-purple-900/40 bg-[#0b0c16] w-full overflow-x-auto scrollbar-none shrink-0">
             {(["ficha", "tokens", "loja", "mapas", "audio", "ia", "mestre"] as const).map((tab) => {
-              if ((tab === "audio" || tab === "mestre" || tab === "ia") && !isMestre) return null;
+              if ((tab === "mestre" || tab === "ia") && !isMestre) return null;
 
               return (
                 <button
@@ -837,15 +847,15 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
                   className={`flex-1 px-1 py-2.5 text-[10px] sm:text-[11px] font-bold capitalize transition border-b-2 text-center truncate cursor-pointer ${
                     activeTab === tab ? "border-cyan-400 text-cyan-400 bg-purple-950/30" : "border-transparent text-gray-400 hover:text-white"
                   }`}
-                  title={tab === "mestre" ? "Mestre" : tab === "ia" ? "IA" : tab === "loja" ? "Loja" : tab}
+                  title={tab === "mestre" ? "Mestre" : tab === "ia" ? "IA" : tab === "loja" ? "Loja" : tab === "audio" ? "Músicas" : tab}
                 >
-                  {tab === "mestre" ? "👑 Mestre" : tab === "ia" ? "🧠 IA" : tab === "loja" ? "🏪 Loja" : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  {tab === "mestre" ? "👑 Mestre" : tab === "ia" ? "🧠 IA" : tab === "loja" ? "🏪 Loja" : tab === "audio" ? "🎵 Músicas" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               );
             })}
           </div>
 
-          {/* ABAS COM RENDERIZAÇÃO PERSISTENTE PARA ÁUDIO E ESTADOS LOCAIS */}
+          {/* ABAS COM RENDERIZAÇÃO PERSISTENTE */}
           <div className="flex-1 p-3 sm:p-4 overflow-y-auto">
             <div className={activeTab === "ficha" ? "block" : "hidden"}>
               <Ficha
@@ -886,7 +896,7 @@ export default function MesaPage({ params }: { params: Promise<{ id: string }> }
               />
             </div>
 
-            <div className={activeTab === "audio" || !isMestre ? (activeTab === "audio" ? "block" : "hidden") : "hidden"}>
+            <div className={activeTab === "audio" ? "block" : "hidden"}>
               <Audio
                 isMestre={isMestre}
                 playlist={playlist}
