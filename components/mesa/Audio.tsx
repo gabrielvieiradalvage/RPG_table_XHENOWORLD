@@ -36,7 +36,7 @@ export default function Audio({
   const [volume, setVolume] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(false);
 
-  // Carrega volume salvo do localStorage
+  // Carrega volume salvo no navegador
   useEffect(() => {
     const savedVolume = localStorage.getItem("xhenos_audio_volume");
     if (savedVolume !== null) {
@@ -45,13 +45,13 @@ export default function Audio({
     }
   }, []);
 
-  // Aplica alteração de volume e mute diretamente na tag HTML de áudio
+  // Sincroniza o volume diretamente no elemento HTML
   useEffect(() => {
     if (!audioRef.current) return;
     audioRef.current.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
-  // Controle único de reprodução de áudio
+  // Controle de reprodução em tempo real
   useEffect(() => {
     if (!audioRef.current) return;
 
@@ -60,7 +60,7 @@ export default function Audio({
       if (currentSrc !== currentTrack.audio_url) {
         audioRef.current.src = currentTrack.audio_url;
       }
-      
+
       audioRef.current.volume = isMuted ? 0 : volume;
 
       if (audioRef.current.paused) {
@@ -68,7 +68,7 @@ export default function Audio({
           .play()
           .then(() => setAutoplayBlocked(false))
           .catch((err) => {
-            console.warn("Autoplay bloqueado pelo navegador/celular:", err);
+            console.warn("Autoplay bloqueado pelo navegador:", err);
             setAutoplayBlocked(true);
           });
       }
@@ -76,7 +76,7 @@ export default function Audio({
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
-  }, [currentTrack, isPlaying]);
+  }, [currentTrack, isPlaying, isMuted, volume]);
 
   const handleVolumeChange = (newVolume: number) => {
     setVolume(newVolume);
@@ -94,22 +94,22 @@ export default function Audio({
       audioRef.current
         .play()
         .then(() => setAutoplayBlocked(false))
-        .catch((err) => console.error("Falha ao forçar reprodução de áudio:", err));
+        .catch((err) => console.error("Falha ao forçar áudio:", err));
     }
   };
 
   return (
     <div className="space-y-3.5 w-full max-w-full">
-      {/* ÚNICO ELEMENTO DE ÁUDIO DA MESA */}
+      {/* Elemento Único de Áudio */}
       <audio ref={audioRef} preload="auto" loop />
 
-      {/* ALERTA DE AUTOPLAY BLOQUEADO PELO NAVEGADOR / CELULAR */}
+      {/* Alerta de Autoplay Mobile/Navegador */}
       {autoplayBlocked && currentTrack && (
         <div className="p-3 bg-amber-950/90 border-2 border-amber-500 rounded-xl flex items-center justify-between gap-3 shadow-lg animate-pulse">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-lg">🔊</span>
             <p className="text-[11px] font-semibold text-amber-200 leading-tight truncate">
-              Toque para ativar o som da mesa no celular
+              Toque para ouvir a música da mesa
             </p>
           </div>
           <button
@@ -122,48 +122,54 @@ export default function Audio({
         </div>
       )}
 
-      {/* PAINEL DE ÁUDIO ATIVO */}
-      {currentTrack && isPlaying && (
-        <div className="p-3 bg-purple-950/60 border border-cyan-500/50 rounded-xl flex items-center justify-between gap-2 shadow-md">
-          <div className="flex items-center gap-2.5 truncate min-w-0">
-            <span className="relative flex h-3 w-3 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+      {/* Faixa em Reprodução */}
+      <div className="p-3 bg-purple-950/60 border border-cyan-500/50 rounded-xl flex items-center justify-between gap-2 shadow-md">
+        <div className="flex items-center gap-2.5 truncate min-w-0">
+          <span className="relative flex h-3 w-3 shrink-0">
+            {isPlaying && currentTrack ? (
+              <>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+              </>
+            ) : (
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-gray-600"></span>
+            )}
+          </span>
+          <div className="truncate min-w-0">
+            <span className="block text-[9px] uppercase font-black tracking-wider text-cyan-300">
+              {isPlaying && currentTrack ? "Tocando na Mesa" : "Nenhum Áudio Ativo"}
             </span>
-            <div className="truncate min-w-0">
-              <span className="block text-[9px] uppercase font-black tracking-wider text-cyan-300">
-                Tocando na Mesa
-              </span>
-              <span className="text-xs font-bold text-white truncate block">
-                {currentTrack.title}
-              </span>
-            </div>
+            <span className="text-xs font-bold text-white truncate block">
+              {currentTrack ? currentTrack.title : "Aguardando o Mestre iniciar uma trilha..."}
+            </span>
           </div>
+        </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
+          {currentTrack && (
             <button
               type="button"
               onClick={handleUnlockAutoplay}
               className="p-1.5 px-2.5 bg-cyan-950 active:bg-cyan-800 text-cyan-300 border border-cyan-700/60 rounded-lg text-[10px] font-bold transition cursor-pointer"
-              title="Sincronizar Áudio Manualmente"
+              title="Sincronizar Áudio"
             >
               🔊 Ouvir
             </button>
+          )}
 
-            {isMestre && onStopTrack && (
-              <button
-                type="button"
-                onClick={onStopTrack}
-                className="px-3 py-1.5 bg-red-950 active:bg-red-800 text-[10px] font-bold text-red-200 rounded-lg transition border border-red-800/60 cursor-pointer"
-              >
-                Parar ⏹
-              </button>
-            )}
-          </div>
+          {isMestre && isPlaying && onStopTrack && (
+            <button
+              type="button"
+              onClick={onStopTrack}
+              className="px-3 py-1.5 bg-red-950 active:bg-red-800 text-[10px] font-bold text-red-200 rounded-lg transition border border-red-800/60 cursor-pointer"
+            >
+              Parar ⏹
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* CONTROLE DE VOLUME LOCAL */}
+      {/* Controle de Volume Local (Acessível para Jogadores e Mestre) */}
       <div className="p-3 bg-[#0b0c16] border border-purple-800/40 rounded-xl space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -175,7 +181,7 @@ export default function Audio({
             >
               {isMuted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
             </button>
-            Volume Local
+            Volume da sua Caixa de Som
           </span>
           <span className="text-[10px] font-mono font-bold text-cyan-400">
             {isMuted ? "MUTADO" : `${Math.round(volume * 100)}%`}
@@ -211,7 +217,7 @@ export default function Audio({
         </div>
       </div>
 
-      {/* UPLOAD DE ÁUDIO (Apenas Mestre) */}
+      {/* Upload de Áudio (Exclusivo Mestre) */}
       {isMestre && (
         <div className="p-3.5 bg-[#0b0c16] border border-purple-800/40 rounded-xl space-y-2">
           <div className="flex items-center justify-between">
@@ -249,7 +255,7 @@ export default function Audio({
         </div>
       )}
 
-      {/* TRILHAS SALVAS */}
+      {/* Lista de Trilhas da Mesa */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="block text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -259,7 +265,7 @@ export default function Audio({
 
         {playlist.length === 0 ? (
           <div className="p-4 bg-[#0b0c16] border border-purple-900/30 rounded-xl text-center">
-            <p className="text-xs text-gray-500">Nenhuma música enviada até o momento.</p>
+            <p className="text-xs text-gray-500">Nenhuma música disponível na mesa.</p>
           </div>
         ) : (
           <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-0.5 scrollbar-thin">
